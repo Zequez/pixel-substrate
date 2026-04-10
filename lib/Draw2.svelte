@@ -35,7 +35,7 @@
     blockSize: number;
     mainColor: string;
     cells: { [key: string]: string };
-    tool: "pen" | "bucket";
+    tool: "pen" | "bucket" | "eyedropper";
     showGrid: boolean;
     penSize: number;
   } = {
@@ -71,6 +71,7 @@
   let isResetting = $state(false);
   let cellsHistory = $state<{ [key: string]: string }[]>([]);
   let cellsFuture = $state<{ [key: string]: string }[]>([]);
+  let prevTool: typeof P.tool | null = null;
 
   let mouseXY = $state<GridCoordinate | null>(null);
   let canvasXY = $derived(mouseXY ? clientCoordToCanvas(mouseXY) : null);
@@ -339,6 +340,11 @@
     }
   }
 
+  function switchTool(tool: typeof P.tool) {
+    prevTool = P.tool;
+    P.tool = tool;
+  }
+
   function download() {
     const link = document.createElement("a");
     link.href = canvas.toDataURL("image/png");
@@ -410,9 +416,12 @@
     const lastP = clientCoordToCanvas(ev);
     const mode = ev.button === 2 ? "alt" : "main";
 
-    if (mode === "alt") {
+    if (mode === "alt" || P.tool === "eyedropper") {
       const p = canvasCoordToCell(lastP);
       P.mainColor = P.cells[toCellKey(p.x, p.y)] || "transparent";
+      if (P.tool === "eyedropper" && prevTool) {
+        P.tool = prevTool;
+      }
     } else {
       captureCellsToHistory();
       if (P.tool === "pen") {
@@ -706,7 +715,7 @@
             </div>
           </div>
           <button
-            class="relative text-white b b-white/80 h-8 w-8 flex-cc rounded-1 cursor-pointer"
+            class="relative text-white b b-white/30 b-r-0 h-6 -mr0 w-8 flex-cc rounded-l-1 cursor-pointer"
             onclick={(ev) => {
               if (isTouchDevice) {
                 setPenSize(P.penSize + 1);
@@ -724,32 +733,28 @@
             <div class="absolute w-full h-1/2 top-1/2 hover:bg-white/50"></div>
           </button>
           <div class="flex bg-white/20 rounded-1">
-            <button
-              class={[
-                "w8 h8 first:rounded-l-1",
-                {
-                  "bg-white text-black": P.tool === "pen",
-                  "text-white": P.tool !== "pen",
-                },
-              ]}
-              onclick={() => (P.tool = "pen")}
-              aria-label="Pen tool"
-            >
-              <span class="i-fa-pen size-full block"></span>
-            </button>
-            <button
-              class={[
-                "w8 h8 last:rounded-r-1",
-                {
-                  "bg-white text-black": P.tool === "bucket",
-                  "text-white": P.tool !== "bucket",
-                },
-              ]}
-              onclick={() => (P.tool = "bucket")}
-              aria-label="Fill tool"
-            >
-              <span class="i-fa-fill size-full block"></span>
-            </button>
+            {#snippet toolBtn(tool: typeof P.tool, label: string, icon: string)}
+              <button
+                class={[
+                  "w8 h8 first:rounded-l-1 last:rounded-r-1 flex-cc",
+                  {
+                    "bg-white text-black": P.tool === tool,
+                    "text-white": P.tool !== tool,
+                  },
+                ]}
+                onclick={() => switchTool(tool)}
+                aria-label={label}
+              >
+                <span class="{icon} text-6 block"></span>
+              </button>
+            {/snippet}
+            {@render toolBtn("pen", "Pen tool", "i-fa-pen")}
+            {@render toolBtn("bucket", "Bucket tool", "i-fa-fill")}
+            {@render toolBtn(
+              "eyedropper",
+              "Eyedropper tool",
+              "i-fa-eye-dropper",
+            )}
           </div>
         </div>
       {/if}
