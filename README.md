@@ -14,6 +14,6 @@ How to run locally using [Bun](https://bun.com/) and [sitio](https://github.com/
 ```
 git clone https://github.com/zequez/pixel-substrate
 cd pixel-substrate
-bun i -g sitio
+bun i -g @ezequielschw/sitio
 sitio dev
 ```
