@@ -69,6 +69,8 @@
   let isFullscreen = $state(false);
   let isTouchDevice = $state(false);
   let isResetting = $state(false);
+  let cellsHistory = $state<{ [key: string]: string }[]>([]);
+  let cellsFuture = $state<{ [key: string]: string }[]>([]);
 
   let mouseXY = $state<GridCoordinate | null>(null);
   let canvasXY = $derived(mouseXY ? clientCoordToCanvas(mouseXY) : null);
@@ -124,6 +126,11 @@
   // ██║     ╚██████╔╝██║ ╚████║
   // ╚═╝      ╚═════╝ ╚═╝  ╚═══╝
 
+  function captureCellsToHistory() {
+    cellsHistory.push({ ...P.cells });
+    cellsFuture = [];
+  }
+
   function setAspectRatio(target: (typeof P)["aspectRatioName"]) {
     P.aspectRatioName = target;
 
@@ -155,7 +162,7 @@
     const shiftX = getCenteredGridShift(nextColumns - prevColumns);
     const shiftY = getCenteredGridShift(nextRows - prevRows);
 
-    P.cells = shiftCells(P.cells, { x: shiftX, y: shiftY });
+    // P.cells = shiftCells(P.cells, { x: shiftX, y: shiftY });
     P.blockSize = newBlockSize;
     resize();
   }
@@ -285,23 +292,50 @@
     );
   }
 
+  function paintFloodFill(to: GridCoordinate) {
+    const coords = floodFill(P.cells, canvasCoordToCell(to), {
+      columns: logicalWidth,
+      rows: logicalHeight,
+    });
+    for (const coord of coords) {
+      if (P.mainColor === "transparent") {
+        deleteCell(coord);
+      } else {
+        storeCell(coord, P.mainColor);
+      }
+    }
+    imageData = drawCells(canvas, null, P.cells);
+  }
+
   let resetTimout: number | null = null;
   function reset() {
     if (!isResetting) {
       isResetting = true;
-      // function cancelReset() {
-      //   isResetting = false;
-      //   window.removeEventListener("pointerup", cancelReset);
-      // }
-      // window.addEventListener("pointerup", cancelReset);
       resetTimout = setTimeout(() => {
         isResetting = false;
       }, 2000);
     } else {
       clearTimeout(resetTimout!);
+      captureCellsToHistory();
       P.cells = {};
       imageData = drawCells(canvas, null, P.cells);
       isResetting = false;
+    }
+  }
+
+  function undo() {
+    if (cellsHistory.length > 0) {
+      cellsFuture.push(P.cells);
+      P.cells = cellsHistory.pop()!;
+      imageData = drawCells(canvas, null, P.cells);
+    }
+  }
+
+  function redo() {
+    if (cellsFuture.length > 0) {
+      cellsHistory.push(P.cells);
+      P.cells = cellsFuture.pop()!;
+      imageData = drawCells(canvas, null, P.cells);
     }
   }
 
@@ -380,22 +414,12 @@
       const p = canvasCoordToCell(lastP);
       P.mainColor = P.cells[toCellKey(p.x, p.y)] || "transparent";
     } else {
+      captureCellsToHistory();
       if (P.tool === "pen") {
         pointerState = { type: "penDown", lastP };
         paintStroke(null, lastP);
       } else if (P.tool === "bucket") {
-        const coords = floodFill(P.cells, canvasCoordToCell(lastP), {
-          columns: logicalWidth,
-          rows: logicalHeight,
-        });
-        for (const coord of coords) {
-          if (P.mainColor === "transparent") {
-            deleteCell(coord);
-          } else {
-            storeCell(coord, P.mainColor);
-          }
-        }
-        imageData = drawCells(canvas, null, P.cells);
+        paintFloodFill(lastP);
       }
     }
   }
@@ -517,7 +541,7 @@
       <!-- First tools -->
       {#if toolbarSide === "left" || !splitToolbar}
         <div class="w-1/2 shrink-0 flex-cs space-x-2 pl-2">
-          <select
+          <!-- <select
             class="bg-white text-black w16 h8 rounded-1 px1.5 text-xs"
             value={P.aspectRatioName}
             oninput={(ev) => setAspectRatio(ev.currentTarget.value as any)}
@@ -526,7 +550,7 @@
             <option value="goldenV">GoldenV</option>
             <option value="goldenH">GoldenH</option>
             <option value="stage">Stage</option>
-          </select>
+          </select> -->
 
           <button
             class={[
@@ -568,7 +592,6 @@
             {/if}
           </button>
 
-          <!-- <div class="flex space-x-3 text-white"> -->
           <button
             class={[
               "h8 w8 flex-cc cursor-pointer text-black rounded-1",
@@ -591,11 +614,11 @@
           />
           {#if splitToolbar}
             <button
-              class="h12 w12 text-white flex-cc bg-white/10 hover:bg-white/20"
+              class="h12 w8 text-white flex-cc bg-white/10 hover:bg-white/20"
               aria-label="Draw controls"
               onclick={() => (toolbarSide = "right")}
             >
-              <span class="i-fa-angles-right text-8"></span>
+              <span class="i-fa-angles-right text-7"></span>
             </button>
           {/if}
           <!-- </div> -->
@@ -606,14 +629,46 @@
         <div class="w-1/2 flex-ce space-x-2 pr-2">
           {#if splitToolbar}
             <button
-              class="h12 w12 text-white flex-cc bg-white/10 hover:bg-white/20"
+              class="h12 w8 text-white flex-cc bg-white/10 hover:bg-white/20"
               aria-label="View controls"
               onclick={() => (toolbarSide = "left")}
             >
-              <span class="i-fa-angles-left text-8"></span>
+              <span class="i-fa-angles-left text-7"></span>
             </button>
           {/if}
           <div class="flex-ce grow ml-2">
+            <div
+              class="flex-cc text-white mr-2 rounded-1 overflow-hidden b b-white/10"
+            >
+              <button
+                class={[
+                  "h8 w8 flex-cc",
+                  {
+                    "bg-white/10 hover:bg-white/30 cursor-pointer":
+                      cellsHistory.length >= 1,
+                    "opacity-50": cellsHistory.length < 1,
+                  },
+                ]}
+                onclick={undo}
+                aria-label="Undo"
+              >
+                <div class="i-fa-arrow-turn-up -rotate-90 block text-6"></div>
+              </button>
+              <button
+                class={[
+                  "h8 w8 flex-cc",
+                  {
+                    "bg-white/10 hover:bg-white/30 cursor-pointer":
+                      cellsFuture.length >= 1,
+                    "opacity-50": cellsFuture.length < 1,
+                  },
+                ]}
+                aria-label="Redo"
+                onclick={redo}
+              >
+                <div class="i-fa-arrow-turn-down -rotate-90 block text-6"></div>
+              </button>
+            </div>
             <div class="flex overflow-hidden rounded-1 grow max-w-100">
               {#each PALETTE as color}
                 <button
