@@ -228,3 +228,20 @@ function isWithinGridBounds(
 export function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
 }
+
+export function canvasCoordToGroupOfCells(
+  { x, y }: GridCoordinate,
+  size: number,
+) {
+  const even = size % 2 === 0;
+
+  const cx = even ? Math.floor(x + 0.5) : Math.floor(x);
+  const cy = even ? Math.floor(y + 0.5) : Math.floor(y);
+
+  const half = Math.floor(size / 2);
+
+  return {
+    x: cx - half,
+    y: cy - half,
+  };
+}

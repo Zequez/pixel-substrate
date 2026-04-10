@@ -1,7 +1,9 @@
 <script lang="ts">
+  // #region imports
   import { tick } from "svelte";
   import Slider from "./Slider.svelte";
   import {
+    canvasCoordToGroupOfCells,
     clampNumber,
     drawCells,
     drawGridLines,
@@ -49,9 +51,13 @@
     penSize: 1,
   };
 
+  // #endregion imports
+
+  // #region state
+
   let shell = $state<HTMLDivElement>(null!);
   let canvas = $state<HTMLCanvasElement>(null!);
-  let gridCanvas = $state<HTMLCanvasElement>(null!);
+  let gridCanvas = $state<HTMLCanvasElement | null>(null);
   let bottomBar = $state<HTMLDivElement>(null!);
   let stage = $state<HTMLDivElement>(null!);
   let P = lsState(STORAGE_KEY, DEFAULT_STATE);
@@ -66,9 +72,6 @@
 
   let mouseXY = $state<GridCoordinate | null>(null);
   let canvasXY = $derived(mouseXY ? clientCoordToCanvas(mouseXY) : null);
-  let gridMouseXY = $derived(
-    mouseXY ? canvasCoordToCell(clientCoordToCanvas(mouseXY)) : null,
-  );
   let gridPenBrushTargetXY = $derived.by(() => {
     if (canvasXY) {
       return canvasCoordToGroupOfCells(canvasXY, P.penSize);
@@ -77,54 +80,21 @@
     }
   });
 
-  let ctx: CanvasRenderingContext2D = null!;
-  let imageData: ImageData = null!;
-
-  // $effect(() => {
-  //   // const { x, y } = clientCoordToCanvas(canvasXY);
-  //   console.log(canvasXY);
-  // });
-
-  function canvasCoordToGroupOfCells({ x, y }: GridCoordinate, size: number) {
-    const even = size % 2 === 0;
-
-    const cx = even ? Math.floor(x + 0.5) : Math.floor(x);
-    const cy = even ? Math.floor(y + 0.5) : Math.floor(y);
-
-    const half = Math.floor(size / 2);
-
-    return {
-      x: cx - half,
-      y: cy - half,
-    };
-  }
-
   let pointerState = $state<null | {
     type: "penDown";
     mode: "main" | "alt";
     lastP: GridCoordinate;
   }>(null);
 
-  function setAspectRatio(target: (typeof P)["aspectRatioName"]) {
-    P.aspectRatioName = target;
+  let toolbarSide = $state<"left" | "right">("left");
+  let splitToolbar = $state(false);
 
-    if (target === "square") {
-      P.aspectRatio = 1;
-    } else if (target === "goldenV") {
-      P.aspectRatio = 16 / 9;
-    } else if (target === "goldenH") {
-      P.aspectRatio = 9 / 16;
-    } else if (target === "stage") {
-      const { width, height } = stage.getBoundingClientRect();
-      P.aspectRatio = width / height;
-    }
-    resize();
-  }
+  let ctx: CanvasRenderingContext2D = null!;
+  let imageData: ImageData = null!;
 
-  function setPenSize(size: number) {
-    P.penSize = clampNumber(size, 1, 64);
-  }
+  // #endregion state
 
+  // #region effects
   $effect(() => {
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -146,6 +116,34 @@
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
   });
+  // #endregion effects
+
+  // ███████╗██╗   ██╗███╗   ██╗
+  // ██╔════╝██║   ██║████╗  ██║
+  // █████╗  ██║   ██║██╔██╗ ██║
+  // ██╔══╝  ██║   ██║██║╚██╗██║
+  // ██║     ╚██████╔╝██║ ╚████║
+  // ╚═╝      ╚═════╝ ╚═╝  ╚═══╝
+
+  function setAspectRatio(target: (typeof P)["aspectRatioName"]) {
+    P.aspectRatioName = target;
+
+    if (target === "square") {
+      P.aspectRatio = 1;
+    } else if (target === "goldenV") {
+      P.aspectRatio = 16 / 9;
+    } else if (target === "goldenH") {
+      P.aspectRatio = 9 / 16;
+    } else if (target === "stage") {
+      const { width, height } = stage.getBoundingClientRect();
+      P.aspectRatio = width / height;
+    }
+    resize();
+  }
+
+  function setPenSize(size: number) {
+    P.penSize = clampNumber(size, 1, 64);
+  }
 
   function changeBlockSize(newBlockSize: number) {
     const prevBlockSize = P.blockSize;
@@ -164,6 +162,8 @@
 
   function resize() {
     const { width, height } = stage.getBoundingClientRect();
+
+    splitToolbar = width < 768;
 
     const stageAspectRatio = width / height;
 
@@ -186,25 +186,28 @@
     canvas.height = pxH || 1;
     logicalWidth = canvas.width;
     logicalHeight = canvas.height;
-    gridCanvas.width = canvasWidth - (canvasWidth % P.blockSize);
-    gridCanvas.height = canvasHeight - (canvasHeight % P.blockSize);
-
-    // drawPixelCheckerboard(ctx);
-    drawGridLines(gridCanvas.getContext("2d")!, P.blockSize);
+    if (gridCanvas) {
+      setGridCanvas();
+    }
     ctx = canvas.getContext("2d")!;
     imageData = drawCells(canvas, null, P.cells);
     tick().then(() => {
-      const { left, top } = gridCanvas.getBoundingClientRect();
+      const { left, top } = canvas.getBoundingClientRect();
       canvasLeft = left;
       canvasTop = top;
     });
   }
 
+  function setGridCanvas() {
+    gridCanvas!.width = canvasWidth - (canvasWidth % P.blockSize);
+    gridCanvas!.height = canvasHeight - (canvasHeight % P.blockSize);
+
+    drawGridLines(gridCanvas!.getContext("2d")!, P.blockSize);
+  }
+
   function realBlockSize() {
     const w = logicalWidth;
     const h = logicalHeight;
-
-    console.log("REAL BLOCK SIZE");
 
     return { xx: canvasWidth / w, yy: canvasHeight / h };
   }
@@ -232,12 +235,6 @@
       y: Math.max(0, Math.min(logicalHeight - 1, Math.floor(p.y))),
     };
   }
-
-  // function eventToCell(ev: PointerEvent) {
-  //   return canvasCoordToCell(
-  //     clientCoordToCanvas({ x: ev.clientX, y: ev.clientY }),
-  //   );
-  // }
 
   function paintStroke(from: GridCoordinate | null, to: GridCoordinate) {
     if (pointerState === null) return;
@@ -291,8 +288,10 @@
   }
 
   function reset() {
-    P.cells = {};
-    imageData = drawCells(canvas, null, P.cells);
+    if (confirm("Reset?")) {
+      P.cells = {};
+      imageData = drawCells(canvas, null, P.cells);
+    }
   }
 
   async function toggleFullscreen() {
@@ -331,6 +330,15 @@
     }
 
     return nextCells;
+  }
+
+  function toggleGrid() {
+    P.showGrid = !P.showGrid;
+    if (P.showGrid) {
+      tick().then(() => {
+        setGridCanvas();
+      });
+    }
   }
 
   function getCenteredGridShift(delta: number) {
@@ -399,19 +407,19 @@
     console.log(ev.key);
     switch (ev.key) {
       case "ArrowDown": {
-        P.cells = shiftCells(P.cells, { x: 0, y: 1 });
-        break;
-      }
-      case "ArrowUp": {
         P.cells = shiftCells(P.cells, { x: 0, y: -1 });
         break;
       }
+      case "ArrowUp": {
+        P.cells = shiftCells(P.cells, { x: 0, y: 1 });
+        break;
+      }
       case "ArrowLeft": {
-        P.cells = shiftCells(P.cells, { x: -1, y: 0 });
+        P.cells = shiftCells(P.cells, { x: 1, y: 0 });
         break;
       }
       case "ArrowRight": {
-        P.cells = shiftCells(P.cells, { x: 1, y: 0 });
+        P.cells = shiftCells(P.cells, { x: -1, y: 0 });
         break;
       }
     }
@@ -438,17 +446,16 @@
         oncontextmenu={(ev) => ev.preventDefault()}
         bind:this={canvas}
       ></canvas>
-      <canvas
-        class="absolute size-full left-0 top-0 z-2 pointer-events-none"
-        bind:this={gridCanvas}
-      ></canvas>
+      {#if P.showGrid}
+        <canvas
+          class="absolute size-full left-0 top-0 z-2 pointer-events-none"
+          bind:this={gridCanvas}
+        ></canvas>
+      {/if}
       {#if P.tool === "pen" && gridPenBrushTargetXY}
-        <!-- {@const multiX =} -->
         {@const { xx, yy } = realBlockSize()}
         {@const s = P.penSize}
         {@const { x, y } = gridPenBrushTargetXY}
-        <!-- {@const xBlockSize = P.blockSize} -->
-        <!-- {@const yBlockSize = P.blockSize} -->
         <div
           style={`transform: translate(${x * xx}px, ${y * yy}px);
               width: ${xx * P.penSize}px; height: ${yy * P.penSize}px;
@@ -458,121 +465,188 @@
       {/if}
     </div>
   </div>
-  <div
-    class="h12 bg-slate-500 flex-cc space-x-3 font-mono px-2"
-    bind:this={bottomBar}
-  >
-    <select
-      class="bg-white text-black w30 h8 rounded-1 px1.5"
-      value={P.aspectRatioName}
-      oninput={(ev) => setAspectRatio(ev.currentTarget.value as any)}
-    >
-      <option value="square">Square</option>
-      <option value="goldenV">GoldenV</option>
-      <option value="goldenH">GoldenH</option>
-      <option value="stage">Stage</option>
-    </select>
 
-    <button
-      class="bg-gray-100 h8 flex-cc hover:bg-white cursor-pointer text-black rounded-1 px1.5 uppercase"
-      onclick={reset}>Reset</button
-    >
+  <!--
+   ████████╗ ██████╗  ██████╗ ██╗     ██████╗  █████╗ ██████╗
+   ╚══██╔══╝██╔═══██╗██╔═══██╗██║     ██╔══██╗██╔══██╗██╔══██╗
+      ██║   ██║   ██║██║   ██║██║     ██████╔╝███████║██████╔╝
+      ██║   ██║   ██║██║   ██║██║     ██╔══██╗██╔══██║██╔══██╗
+      ██║   ╚██████╔╝╚██████╔╝███████╗██████╔╝██║  ██║██║  ██║
+      ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
+  -->
 
-    <button
-      class="bg-gray-100 h8 flex-cc hover:bg-white cursor-pointer text-black rounded-1 px1.5 uppercase"
-      onclick={toggleFullscreen}
+  <div class="h12 bg-gray-900 overflow-hidden font-mono" bind:this={bottomBar}>
+    <div
+      class={[
+        "flex h-full",
+        {
+          "w-[200vw]": splitToolbar,
+          "w-[100vw]": !splitToolbar,
+        },
+      ]}
     >
-      {#if isFullscreen}
-        <span class="i-fa-compress"></span>
-      {:else}
-        <span class="i-fa-expand"></span>
-      {/if}
-    </button>
+      <!-- First tools -->
+      {#if toolbarSide === "left" || !splitToolbar}
+        <div class="w-1/2 shrink-0 flex-cs space-x-2 pl-2">
+          <select
+            class="bg-white text-black w16 h8 rounded-1 px1.5 text-xs"
+            value={P.aspectRatioName}
+            oninput={(ev) => setAspectRatio(ev.currentTarget.value as any)}
+          >
+            <option value="square">Square</option>
+            <option value="goldenV">GoldenV</option>
+            <option value="goldenH">GoldenH</option>
+            <option value="stage">Stage</option>
+          </select>
 
-    <div class="flex space-x-3 text-white">
-      <div class="">SIZE:</div>
-      <Slider
-        value={P.blockSize}
-        values={BLOCK_SIZES}
-        onChange={(v) => {
-          changeBlockSize(v);
-        }}
-      />
-      <div>{P.blockSize}px</div>
-    </div>
-    <div class="grow"></div>
-    <div class="flex overflow-hidden rounded-1">
-      {#each PALETTE as color}
-        <button
-          class={[
-            "h-8 w-8 relative group",
-            {
-              "transparent-lines": color === "transparent",
-            },
-          ]}
-          style="background-color: {color};"
-          aria-label="Set color to {color}"
-          oncontextmenu={(ev) => ev.preventDefault()}
-          onmousedown={(ev) => {
-            if (ev.button === 0) {
-              P.mainColor = color;
-            } else if (ev.button === 2) {
-              P.altColor = color;
-            }
-          }}
-        >
-          <div
+          <button
+            class="h8 w8 flex-cc hover:bg-white/10 cursor-pointer text-white rounded-1"
+            onclick={reset}
+            title="Reset"
+          >
+            <span class="i-fa-file-half-dashed text-9"></span>
+          </button>
+
+          <button
             class={[
-              "group-hover:block hidden absolute inset-0 b-1.5  group-last:rounded-r-1 group-first:rounded-l-1",
+              "h8 w8 flex-cc cursor-pointer rounded-1",
               {
-                "b-gray-800 bg-white/20": color !== "#000000",
-                "b-gray-200 bg-black/20": color === "#000000",
+                "text-white bg-transparent hover:bg-white/10": !isFullscreen,
+                "text-black bg-gray-100 hover:bg-gray-200": isFullscreen,
               },
             ]}
-          ></div>
-          {#if color === P.mainColor}
-            <span
-              class="absolute top-.5 left-.5 h3 w3 bg-white rounded-full b b-black"
-            ></span>
+            onclick={toggleFullscreen}
+            aria-label="Toggle fullscreen"
+          >
+            {#if isFullscreen}
+              <span class="i-fa-compress text-8"></span>
+            {:else}
+              <span class="i-fa-expand text-8"></span>
+            {/if}
+          </button>
+
+          <!-- <div class="flex space-x-3 text-white"> -->
+          <button
+            class={[
+              "h8 w8 flex-cc cursor-pointer text-black rounded-1",
+              {
+                "text-white bg-transparent hover:bg-white/10": !P.showGrid,
+                "text-black bg-gray-100 hover:bg-gray-200": P.showGrid,
+              },
+            ]}
+            onclick={toggleGrid}
+            aria-label="Toggle grid"
+          >
+            <span class="i-fa-table-cells text-8"></span>
+          </button>
+          <Slider
+            value={P.blockSize}
+            values={BLOCK_SIZES}
+            onChange={(v) => {
+              changeBlockSize(v);
+            }}
+          />
+          {#if splitToolbar}
+            <button
+              class="h12 w12 text-white flex-cc bg-white/10 hover:bg-white/20"
+              aria-label="Draw controls"
+              onclick={() => (toolbarSide = "right")}
+            >
+              <span class="i-fa-angles-right text-8"></span>
+            </button>
           {/if}
-          {#if color === P.altColor}
-            <span
-              class="absolute bottom-.5 right-.5 h3 w3 bg-white rounded-full b b-black"
-            ></span>
+          <!-- </div> -->
+        </div>
+      {/if}
+      {#if toolbarSide === "right" || !splitToolbar}
+        <!-- Second tools -->
+        <div class="w-1/2 flex-ce space-x-2 pr-2">
+          {#if splitToolbar}
+            <button
+              class="h12 w12 text-white flex-cc bg-white/10 hover:bg-white/20"
+              aria-label="View controls"
+              onclick={() => (toolbarSide = "left")}
+            >
+              <span class="i-fa-angles-left text-8"></span>
+            </button>
           {/if}
-        </button>
-      {/each}
-    </div>
-    <div class="text-white b b-white/80 h-8 w-8 flex-cc rounded-1">
-      {P.penSize}
-    </div>
-    <div class="flex bg-white/20 rounded-1">
-      <button
-        class={[
-          "w8 h8 first:rounded-l-1",
-          {
-            "bg-white text-black": P.tool === "pen",
-            "text-white": P.tool !== "pen",
-          },
-        ]}
-        onclick={() => (P.tool = "pen")}
-        aria-label="Pen tool"
-      >
-        <span class="i-fa-pen size-full block"></span>
-      </button>
-      <button
-        class={[
-          "w8 h8 last:rounded-r-1",
-          {
-            "bg-white text-black": P.tool === "bucket",
-            "text-white": P.tool !== "bucket",
-          },
-        ]}
-        onclick={() => (P.tool = "bucket")}
-        aria-label="Fill tool"
-      >
-        <span class="i-fa-fill size-full block"></span>
-      </button>
+          <div class="flex-ce grow ml-2">
+            <div class="flex overflow-hidden rounded-1 grow max-w-100">
+              {#each PALETTE as color}
+                <button
+                  class={[
+                    "h-8 w-full relative group",
+                    {
+                      "transparent-lines": color === "transparent",
+                    },
+                  ]}
+                  style="background-color: {color};"
+                  aria-label="Set color to {color}"
+                  oncontextmenu={(ev) => ev.preventDefault()}
+                  onmousedown={(ev) => {
+                    if (ev.button === 0) {
+                      P.mainColor = color;
+                    } else if (ev.button === 2) {
+                      P.altColor = color;
+                    }
+                  }}
+                >
+                  <div
+                    class={[
+                      "group-hover:block hidden absolute inset-0 b-1.5  group-last:rounded-r-1 group-first:rounded-l-1",
+                      {
+                        "b-gray-800 bg-white/20": color !== "#000000",
+                        "b-gray-200 bg-black/20": color === "#000000",
+                      },
+                    ]}
+                  ></div>
+                  {#if color === P.mainColor}
+                    <span
+                      class="absolute top-.5 left-.5 h3 w3 bg-white rounded-full b b-black"
+                    ></span>
+                  {/if}
+                  {#if color === P.altColor}
+                    <span
+                      class="absolute bottom-.5 right-.5 h3 w3 bg-white rounded-full b b-black"
+                    ></span>
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          </div>
+          <div class="text-white b b-white/80 h-8 w-8 flex-cc rounded-1">
+            {P.penSize}
+          </div>
+          <div class="flex bg-white/20 rounded-1">
+            <button
+              class={[
+                "w8 h8 first:rounded-l-1",
+                {
+                  "bg-white text-black": P.tool === "pen",
+                  "text-white": P.tool !== "pen",
+                },
+              ]}
+              onclick={() => (P.tool = "pen")}
+              aria-label="Pen tool"
+            >
+              <span class="i-fa-pen size-full block"></span>
+            </button>
+            <button
+              class={[
+                "w8 h8 last:rounded-r-1",
+                {
+                  "bg-white text-black": P.tool === "bucket",
+                  "text-white": P.tool !== "bucket",
+                },
+              ]}
+              onclick={() => (P.tool = "bucket")}
+              aria-label="Fill tool"
+            >
+              <span class="i-fa-fill size-full block"></span>
+            </button>
+          </div>
+        </div>
+      {/if}
     </div>
   </div>
 </div>
