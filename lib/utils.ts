@@ -103,6 +103,9 @@ export function drawCells(
     const { cells: cellKeys, color } = mode2;
     for (let xy of cellKeys) {
       const { x, y } = xy;
+      if (x < 0 || y < 0 || x >= width || y >= height) {
+        continue;
+      }
       const i = (y * width + x) * 4;
       if (color === "transparent") {
         data[i] = 0;

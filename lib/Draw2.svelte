@@ -34,7 +34,6 @@
     aspectRatio: number;
     blockSize: number;
     mainColor: string;
-    altColor: string;
     cells: { [key: string]: string };
     tool: "pen" | "bucket";
     showGrid: boolean;
@@ -44,7 +43,6 @@
     aspectRatio: 1,
     blockSize: BLOCK_SIZES[3]!,
     mainColor: PALETTE[3]!,
-    altColor: PALETTE[0]!,
     cells: {},
     tool: "pen",
     showGrid: true,
@@ -69,6 +67,8 @@
   let logicalWidth = $state(100);
   let logicalHeight = $state(100);
   let isFullscreen = $state(false);
+  let isTouchDevice = $state(false);
+  let isResetting = $state(false);
 
   let mouseXY = $state<GridCoordinate | null>(null);
   let canvasXY = $derived(mouseXY ? clientCoordToCanvas(mouseXY) : null);
@@ -82,7 +82,6 @@
 
   let pointerState = $state<null | {
     type: "penDown";
-    mode: "main" | "alt";
     lastP: GridCoordinate;
   }>(null);
 
@@ -142,7 +141,8 @@
   }
 
   function setPenSize(size: number) {
-    P.penSize = clampNumber(size, 1, 64);
+    const size2 = isTouchDevice ? (size > 8 ? 1 : size) : size;
+    P.penSize = clampNumber(size2, 1, isTouchDevice ? 8 : 64);
   }
 
   function changeBlockSize(newBlockSize: number) {
@@ -238,7 +238,6 @@
 
   function paintStroke(from: GridCoordinate | null, to: GridCoordinate) {
     if (pointerState === null) return;
-    const alt = pointerState.mode === "alt";
 
     let coordinatesToPaint: GridCoordinate[] = [];
     if (P.penSize !== 1) {
@@ -268,14 +267,13 @@
         : [canvasCoordToCell(to)];
     }
 
-    const color = alt ? P.altColor : P.mainColor;
-    const shouldDelete = color === "transparent";
+    const shouldDelete = P.mainColor === "transparent";
 
     for (const coordinate of coordinatesToPaint) {
       if (shouldDelete) {
         deleteCell(coordinate);
       } else {
-        storeCell(coordinate, color);
+        storeCell(coordinate, P.mainColor);
       }
     }
 
@@ -283,15 +281,36 @@
       canvas,
       imageData,
       {},
-      { cells: coordinatesToPaint, color },
+      { cells: coordinatesToPaint, color: P.mainColor },
     );
   }
 
+  let resetTimout: number | null = null;
   function reset() {
-    if (confirm("Reset?")) {
+    if (!isResetting) {
+      isResetting = true;
+      // function cancelReset() {
+      //   isResetting = false;
+      //   window.removeEventListener("pointerup", cancelReset);
+      // }
+      // window.addEventListener("pointerup", cancelReset);
+      resetTimout = setTimeout(() => {
+        isResetting = false;
+      }, 2000);
+    } else {
+      clearTimeout(resetTimout!);
       P.cells = {};
       imageData = drawCells(canvas, null, P.cells);
+      isResetting = false;
     }
+  }
+
+  function download() {
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/png");
+    const randomFileName = Math.random().toString(36).slice(2);
+    link.download = `pixel-${randomFileName}.png`;
+    link.click();
   }
 
   async function toggleFullscreen() {
@@ -357,23 +376,27 @@
     const lastP = clientCoordToCanvas(ev);
     const mode = ev.button === 2 ? "alt" : "main";
 
-    if (P.tool === "pen") {
-      pointerState = { type: "penDown", lastP, mode };
-      paintStroke(null, lastP);
-    } else if (P.tool === "bucket") {
-      const coords = floodFill(P.cells, canvasCoordToCell(lastP), {
-        columns: logicalWidth,
-        rows: logicalHeight,
-      });
-      const color = mode === "main" ? P.mainColor : P.altColor;
-      for (const coord of coords) {
-        if (color === "transparent") {
-          deleteCell(coord);
-        } else {
-          storeCell(coord, color);
+    if (mode === "alt") {
+      const p = canvasCoordToCell(lastP);
+      P.mainColor = P.cells[toCellKey(p.x, p.y)] || "transparent";
+    } else {
+      if (P.tool === "pen") {
+        pointerState = { type: "penDown", lastP };
+        paintStroke(null, lastP);
+      } else if (P.tool === "bucket") {
+        const coords = floodFill(P.cells, canvasCoordToCell(lastP), {
+          columns: logicalWidth,
+          rows: logicalHeight,
+        });
+        for (const coord of coords) {
+          if (P.mainColor === "transparent") {
+            deleteCell(coord);
+          } else {
+            storeCell(coord, P.mainColor);
+          }
         }
+        imageData = drawCells(canvas, null, P.cells);
       }
-      imageData = drawCells(canvas, null, P.cells);
     }
   }
 
@@ -404,7 +427,6 @@
   }
 
   function handleKeyPress(ev: KeyboardEvent) {
-    console.log(ev.key);
     switch (ev.key) {
       case "ArrowDown": {
         P.cells = shiftCells(P.cells, { x: 0, y: -1 });
@@ -425,19 +447,23 @@
     }
     imageData = drawCells(canvas, null, P.cells);
   }
+
+  function handleTouchStart(ev: TouchEvent) {
+    isTouchDevice = true;
+  }
 </script>
 
-<svelte:window on:keydown={handleKeyPress} />
+<svelte:window on:keydown={handleKeyPress} on:touchstart={handleTouchStart} />
 
-<div class="size-screen bg-gray-900 flex flex-col" bind:this={shell}>
-  <div class="grow relative flex-cc overflow-hidden" bind:this={stage}>
+<div class="w-screen h-[100dvh] bg-gray-900 flex flex-col" bind:this={shell}>
+  <div class="grow h-200px relative flex-cc overflow-hidden" bind:this={stage}>
     <div
       class="relative transparent-lines shadow-[0_20px_60px_rgba(0,0,0,0.34)]"
       style="width: {canvasWidth}px; height: {canvasHeight}px;"
     >
       <canvas
         style="image-rendering: pixelated;"
-        class="absolute size-full left-0 top-0 z-1 cursor-crosshair"
+        class="absolute size-full left-0 top-0 z-1 cursor-crosshair touch-none"
         onpointerdown={handlePointerDown}
         onpointermove={handlePointerMove}
         onpointerleave={handlePointerLeave}
@@ -475,7 +501,10 @@
       ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
   -->
 
-  <div class="h12 bg-gray-900 overflow-hidden font-mono" bind:this={bottomBar}>
+  <div
+    class="h12 bg-gray-700 shrink-0 overflow-hidden font-mono touch-none"
+    bind:this={bottomBar}
+  >
     <div
       class={[
         "flex h-full",
@@ -500,11 +529,25 @@
           </select>
 
           <button
-            class="h8 w8 flex-cc hover:bg-white/10 cursor-pointer text-white rounded-1"
+            class={[
+              "h8 w8 flex-cc hover:bg-white/10 cursor-pointer rounded-1",
+              {
+                "text-red": isResetting,
+                "text-white": !isResetting,
+              },
+            ]}
             onclick={reset}
             title="Reset"
           >
             <span class="i-fa-file-half-dashed text-9"></span>
+          </button>
+
+          <button
+            class="h8 w8 flex-cc hover:bg-white/10 cursor-pointer text-white rounded-1"
+            onclick={download}
+            title="Download"
+          >
+            <span class="i-fa-file-arrow-down text-9"></span>
           </button>
 
           <button
@@ -586,8 +629,6 @@
                   onmousedown={(ev) => {
                     if (ev.button === 0) {
                       P.mainColor = color;
-                    } else if (ev.button === 2) {
-                      P.altColor = color;
                     }
                   }}
                 >
@@ -605,18 +646,28 @@
                       class="absolute top-.5 left-.5 h3 w3 bg-white rounded-full b b-black"
                     ></span>
                   {/if}
-                  {#if color === P.altColor}
-                    <span
-                      class="absolute bottom-.5 right-.5 h3 w3 bg-white rounded-full b b-black"
-                    ></span>
-                  {/if}
                 </button>
               {/each}
             </div>
           </div>
-          <div class="text-white b b-white/80 h-8 w-8 flex-cc rounded-1">
+          <button
+            class="relative text-white b b-white/80 h-8 w-8 flex-cc rounded-1 cursor-pointer"
+            onclick={(ev) => {
+              if (isTouchDevice) {
+                setPenSize(P.penSize + 1);
+              } else {
+                const { height, top } =
+                  ev.currentTarget.getBoundingClientRect();
+                const y = ev.clientY - top;
+                const add = y < height / 2;
+                setPenSize(P.penSize + (add ? 1 : -1));
+              }
+            }}
+          >
             {P.penSize}
-          </div>
+            <div class="absolute w-full h-1/2 top-0 hover:bg-white/50"></div>
+            <div class="absolute w-full h-1/2 top-1/2 hover:bg-white/50"></div>
+          </button>
           <div class="flex bg-white/20 rounded-1">
             <button
               class={[
