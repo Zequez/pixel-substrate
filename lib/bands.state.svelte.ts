@@ -74,10 +74,10 @@ function createBandsState(config: {
     get dimension() {
       return dimension;
     },
-    up() {
+    nextDimension() {
       dimension = (dimension + 1) % config.maxBands;
     },
-    down() {
+    previousDimension() {
       dimension = (dimension - 1 + config.maxBands) % config.maxBands;
     },
     loopPos,

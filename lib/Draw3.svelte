@@ -125,13 +125,13 @@
     switch (ev.code) {
       case "KeyS":
       case "ArrowDown": {
-        B.down();
+        B.nextDimension();
         resizeSquaresCanvas();
         break;
       }
       case "KeyW":
       case "ArrowUp": {
-        B.up();
+        B.previousDimension();
         resizeSquaresCanvas();
         break;
       }
@@ -237,10 +237,14 @@
   </div>
   <div class="basis-24 p3 grow-0 shrink-0 bg-slate-600">
     <div class="bg-white/20">
-      {#each B.band as line, i}
-        <div class="flex">
-          {#each line as block, j}
-            <div class="h1 w1" style={`background-color: ${block}`}></div>
+      {#each B.bands as band, i (i)}
+        <div class={[{ "shadow-[inset_0_0_1px_#fff]": i === B.dimension }]}>
+          {#each band as line, i}
+            <div class="flex">
+              {#each line as block, j}
+                <div class="h1 w1" style={`background-color: ${block}`}></div>
+              {/each}
+            </div>
           {/each}
         </div>
       {/each}
