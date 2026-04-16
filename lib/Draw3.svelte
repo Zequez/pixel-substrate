@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { render } from "svelte/server";
   import { createStarsPen, createSquarePen, createGridPen } from "./brushes";
+  import { createBandsState } from "./bands.state.svelte";
 
   const props: { class?: any } = $props();
 
@@ -17,15 +18,24 @@
   const STARS_DOWNSCALING = 1;
   const MAX_DOWNSCALING = 6;
 
-  let downscaling = $state(3);
   let direction: "r" | "b" | "t" | "l" = $state("r");
   let flexDirection = $derived(direction === "r" ? "column" : "row");
 
   let stageLoc = $state({ x: 0, y: 0, w: 1, h: 1 });
   let aspectRatio = $derived(stageLoc.w / stageLoc.h);
-  let cross = $derived(2 ** (downscaling - 1));
-  let axis = $derived(Math.floor(cross * aspectRatio));
   let shift = $state(0);
+
+  let B = createBandsState({ maxBands: 6, initialBand: 3, minLength: 6 });
+  let stageLength = $derived(Math.floor(B.bandSize * aspectRatio));
+  let stageSlice = $derived(B.readBand(shift, stageLength));
+
+  // VIEWPORT STATE
+  // let dimension = $state(3);
+  // let bands: string[][] = Array(MAX_DOWNSCALING).fill([] as string[]);
+  // let band = $derived(bands[dimension]!);
+  // let cross = $derived(2 ** (dimension - 1));
+  // let axis = $derived(Math.floor(cross * aspectRatio));
+
   // let axisMaxLength = $derived.by(() => {
   //   const finestBand = bands[bands.length - 1]!;
   //   return Math.max(...finestBand.map((color) => color.length));
@@ -39,16 +49,17 @@
     lastPos: SquareCoord;
   }>(null);
 
-  let bands: string[][] = Array(MAX_DOWNSCALING).fill([] as string[]);
-  for (let level = 0; level <= MAX_DOWNSCALING; level++) {
-    const crossForLevel = 2 ** level;
-    bands[level] = Array(crossForLevel).fill(["yellow", "orange", "blue"]);
-  }
+  // for (let level = 0; level <= MAX_DOWNSCALING; level++) {
+  //   const crossForLevel = 2 ** level;
+  //   bands[level] = Array(crossForLevel).fill(["yellow", "orange", "blue"]);
+  // }
 
   onMount(() => {
-    gridPen = createGridPen(canvasGrid.getContext("2d")!, downscaling, "x");
+    // gridPen = createGridPen(canvasGrid.getContext("2d")!, dimension, "x");
     starsPen = createStarsPen(canvasStars.getContext("2d")!, 100);
     squarePen = createSquarePen(canvasSquares.getContext("2d")!);
+
+    B.fillCurrentWithGiberish();
 
     readDimensionFromStage();
     drawStars();
@@ -64,37 +75,44 @@
     } = stage.getBoundingClientRect();
     stageLoc = { w, h, x, y };
 
+    // canvasGrid.width = w;
+    // canvasGrid.height = h;
     canvasStars.width = w / STARS_DOWNSCALING;
     canvasStars.height = h / STARS_DOWNSCALING;
     resizeSquaresCanvas();
+    // drawGrid();
   }
 
+  // $effect(() => {
+  //   canvasSquares.height = B.bandSize;
+  //   canvasSquares.width = stageLength;
+  // })
+
   function resizeSquaresCanvas() {
-    canvasSquares.width = axis;
-    canvasSquares.height = cross;
+    canvasSquares.height = B.bandSize;
+    canvasSquares.width = stageLength;
   }
 
   function drawSquares() {
     squarePen.clear();
-    const band = bands[downscaling]!;
-    console.log(cross, axis);
-    for (let x = 0; x < cross; x++) {
-      for (let y = 0; y < axis; y++) {
-        let x2 = x + shift;
-        console.log(x2);
-        const color = band[y]![x2];
-        console.log(color);
-
+    console.log(stageSlice);
+    stageSlice.forEach((line, lineN) => {
+      line.forEach((color, x) => {
         if (color) {
-          squarePen.draw(x, y, 1, color);
+          squarePen.draw(x, lineN, 1, color);
         }
-      }
-    }
+      });
+    });
   }
 
   function drawStars() {
-    const { w, h, x, y } = stageLoc;
-    starsPen.draw(x, y, w, h);
+    const { w, h } = stageLoc;
+    starsPen.draw(0, 0, w, h);
+  }
+
+  function drawGrid() {
+    const { w, h } = stageLoc;
+    gridPen.draw(0, 0, w, h);
   }
 
   function handleStageResize() {
@@ -107,13 +125,13 @@
     switch (ev.code) {
       case "KeyS":
       case "ArrowDown": {
-        downscaling = Math.max(1, downscaling - 1);
+        B.down();
         resizeSquaresCanvas();
         break;
       }
       case "KeyW":
       case "ArrowUp": {
-        downscaling = Math.min(MAX_DOWNSCALING, downscaling + 1);
+        B.up();
         resizeSquaresCanvas();
         break;
       }
@@ -126,6 +144,10 @@
       case "ArrowRight": {
         shift += 1;
         break;
+      }
+      case "Space": {
+        B.fillCurrentWithGiberish();
+        drawSquares();
       }
     }
 
@@ -169,7 +191,25 @@
 <svelte:window onresize={handleStageResize} onkeypress={handleKeyPress} />
 
 <div style={`flex-direction: ${flexDirection};`} class="flex h-[100dvh]">
-  <div class="basis-20 bg-red"></div>
+  <div class="basis-24 p3 shrink-0 bg-stone-600 text-white">
+    <div class="h6 align-middle">
+      Stage (PX):
+      <span class="inline-block i-fa-arrow-right relative top-0.5"></span>
+      {stageLoc.x}
+      <span class="inline-block i-fa-arrow-down relative top-0.5"></span>
+      {stageLoc.y}
+      |
+      {stageLoc.w}x{stageLoc.h}
+    </div>
+    <div class="h6">
+      Aspect Ratio: {JSON.stringify(Math.round(aspectRatio * 100) / 100)}
+    </div>
+    <div class="h6">
+      [{B.dimension}] | Canvas: {B.bandSize}x{stageLength} | {shift} ({B.loopPos(
+        shift,
+      )})
+    </div>
+  </div>
   <div class="basis-60 relative flex-grow bg-gray-900" bind:this={stage}>
     <canvas
       class={[
@@ -195,5 +235,15 @@
       bind:this={canvasStars}
     ></canvas>
   </div>
-  <div class="basis-20 bg-blue"></div>
+  <div class="basis-24 p3 grow-0 shrink-0 bg-slate-600">
+    <div class="bg-white/20">
+      {#each B.band as line, i}
+        <div class="flex">
+          {#each line as block, j}
+            <div class="h1 w1" style={`background-color: ${block}`}></div>
+          {/each}
+        </div>
+      {/each}
+    </div>
+  </div>
 </div>

@@ -3,10 +3,14 @@ export function createGridPen(
   downscaling: number,
   axis: "x" | "y",
 ) {
-  pen.strokeStyle = "white";
-  pen.lineWidth = 0.5;
+  function draw(x: number, y: number, w: number, h: number) {
+    pen.clearRect(0, 0, pen.canvas.width, pen.canvas.height);
+    pen.fillRect(0, 0, pen.canvas.width, pen.canvas.height);
+    pen.strokeStyle = "white";
+    pen.lineWidth = 0.5;
+  }
 
-  function draw(x: number, y: number, w: number, h: number) {}
+  return { draw };
 }
 
 export function createStarsPen(pen: CanvasRenderingContext2D, density: number) {
