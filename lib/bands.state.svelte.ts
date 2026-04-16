@@ -2,7 +2,7 @@ type Line = (null | string)[];
 type Band = Line[];
 
 function craftEmptyBand(n: number): Band {
-  return new Array(n).fill(null).map(() => [null]);
+  return new Array(2 ** n).fill(null).map(() => [null]);
 }
 
 function createBandsState(config: {
@@ -11,8 +11,9 @@ function createBandsState(config: {
   minLength: number;
 }) {
   let bands: Band[] = $state(
-    new Array(config.maxBands).fill(null).map((_, i) => craftEmptyBand(i + 1)),
+    new Array(config.maxBands).fill(null).map((_, i) => craftEmptyBand(i)),
   );
+  console.log(bands);
 
   let dimension = $state(config.initialBand);
 

@@ -59,8 +59,6 @@
     starsPen = createStarsPen(canvasStars.getContext("2d")!, 100);
     squarePen = createSquarePen(canvasSquares.getContext("2d")!);
 
-    B.fillCurrentWithGiberish();
-
     readDimensionFromStage();
     drawStars();
     drawSquares();
@@ -95,7 +93,6 @@
 
   function drawSquares() {
     squarePen.clear();
-    console.log(stageSlice);
     stageSlice.forEach((line, lineN) => {
       line.forEach((color, x) => {
         if (color) {
@@ -238,11 +235,19 @@
   <div class="basis-24 p3 grow-0 shrink-0 bg-slate-600">
     <div class="bg-white/20">
       {#each B.bands as band, i (i)}
-        <div class={[{ "shadow-[inset_0_0_1px_#fff]": i === B.dimension }]}>
-          {#each band as line, i}
-            <div class="flex">
+        {@const scale = i + 1}
+        <div
+          class={[
+            "flex flex-col",
+            { "shadow-[inset_0_0_1px_#fff]": i === B.dimension },
+          ]}
+        >
+          {#each band as line, i (i)}
+            <div class="flex relative">
               {#each line as block, j}
-                <div class="h1 w1" style={`background-color: ${block}`}></div>
+                <div
+                  style={`background-color: ${block}; width: ${8 / scale}px; height: ${8 / scale}px`}
+                ></div>
               {/each}
             </div>
           {/each}
