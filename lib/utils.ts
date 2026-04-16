@@ -57,7 +57,7 @@ export function drawGridLines(
     ctx.moveTo(0, y);
     ctx.lineTo(width, y);
   }
-  ctx.strokeStyle = "#000";
+  ctx.strokeStyle = "#fff4";
   ctx.stroke();
 }
 
@@ -91,9 +91,11 @@ export function drawCells(
     cells: GridCoordinate[];
     color: string;
   },
+  shiftX?: number,
 ) {
   const ctx = canvas.getContext("2d")!;
 
+  const sx = shiftX || 0;
   const width = canvas.width;
   const height = canvas.height;
   const imageData = providedImageData || ctx.createImageData(width, height);
@@ -102,7 +104,8 @@ export function drawCells(
   if (mode2) {
     const { cells: cellKeys, color } = mode2;
     for (let xy of cellKeys) {
-      const { x, y } = xy;
+      const { x: x2, y } = xy;
+      const x = x2 - sx;
       if (x < 0 || y < 0 || x >= width || y >= height) {
         continue;
       }
@@ -122,7 +125,8 @@ export function drawCells(
   } else {
     for (let xy in cells) {
       const color = cells[xy]!;
-      const { x, y } = parseCellKey(xy);
+      const { x: x2, y } = parseCellKey(xy);
+      const x = x2 - sx;
       if (x < 0 || y < 0 || x >= width || y >= height) {
         continue;
       }
