@@ -43,12 +43,16 @@ export function createStarsPen(pen: CanvasRenderingContext2D, density: number) {
 }
 
 export function createSquarePen(pen: CanvasRenderingContext2D) {
-  console.log("Creating pen");
+  // console.log("Creating pen");
   function draw(x: number, y: number, scale: number, color: string) {
-    console.log("Drawing", x, y, scale, color);
+    // console.log("Drawing", x, y, scale, color);
     pen.fillStyle = color;
     pen.fillRect(x, y, scale, scale);
   }
 
-  return { draw };
+  function clear() {
+    pen.clearRect(0, 0, pen.canvas.width, pen.canvas.height);
+  }
+
+  return { draw, clear };
 }

@@ -14,15 +14,36 @@
   let squarePen: ReturnType<typeof createSquarePen> = null!;
   let gridPen: ReturnType<typeof createGridPen> = null!;
 
-  let STARS_DOWNSCALING = 1;
+  const STARS_DOWNSCALING = 1;
+  const MAX_DOWNSCALING = 6;
 
-  let MAX_DOWNSCALING = 6;
   let downscaling = $state(3);
-  let DIRECTION = 1;
+  let direction: "r" | "b" | "t" | "l" = $state("r");
+  let flexDirection = $derived(direction === "r" ? "column" : "row");
 
   let stageLoc = $state({ x: 0, y: 0, w: 1, h: 1 });
   let aspectRatio = $derived(stageLoc.w / stageLoc.h);
   let cross = $derived(2 ** (downscaling - 1));
+  let axis = $derived(Math.floor(cross * aspectRatio));
+  let shift = $state(0);
+  // let axisMaxLength = $derived.by(() => {
+  //   const finestBand = bands[bands.length - 1]!;
+  //   return Math.max(...finestBand.map((color) => color.length));
+  // });
+  // let shiftLimit = $derived(bands);
+
+  type SquareCoord = { cross: number; axis: number };
+
+  let pointerState = $state<null | {
+    type: "penDown";
+    lastPos: SquareCoord;
+  }>(null);
+
+  let bands: string[][] = Array(MAX_DOWNSCALING).fill([] as string[]);
+  for (let level = 0; level <= MAX_DOWNSCALING; level++) {
+    const crossForLevel = 2 ** level;
+    bands[level] = Array(crossForLevel).fill(["yellow", "orange", "blue"]);
+  }
 
   onMount(() => {
     gridPen = createGridPen(canvasGrid.getContext("2d")!, downscaling, "x");
@@ -49,18 +70,26 @@
   }
 
   function resizeSquaresCanvas() {
-    canvasSquares.width = Math.floor(cross * aspectRatio);
+    canvasSquares.width = axis;
     canvasSquares.height = cross;
   }
 
   function drawSquares() {
-    const { w, h, x, y } = stageLoc;
-    squarePen.draw(0, 0, 1, "yellow");
-    squarePen.draw(1, 0, 1, "pink");
-    squarePen.draw(0, 2, 1, "red");
-    squarePen.draw(1, 2, 1, "blue");
-    squarePen.draw(1, 3, 1, "green");
-    squarePen.draw(0, 4, 1, "red");
+    squarePen.clear();
+    const band = bands[downscaling]!;
+    console.log(cross, axis);
+    for (let x = 0; x < cross; x++) {
+      for (let y = 0; y < axis; y++) {
+        let x2 = x + shift;
+        console.log(x2);
+        const color = band[y]![x2];
+        console.log(color);
+
+        if (color) {
+          squarePen.draw(x, y, 1, color);
+        }
+      }
+    }
   }
 
   function drawStars() {
@@ -79,50 +108,90 @@
       case "KeyS":
       case "ArrowDown": {
         downscaling = Math.max(1, downscaling - 1);
+        resizeSquaresCanvas();
         break;
       }
       case "KeyW":
       case "ArrowUp": {
         downscaling = Math.min(MAX_DOWNSCALING, downscaling + 1);
+        resizeSquaresCanvas();
         break;
       }
       case "KeyA":
       case "ArrowLeft": {
-        // P.xShift -= 1;
-        // reDrawCells(true);
+        shift -= 1;
         break;
       }
       case "KeyD":
       case "ArrowRight": {
-        // P.xShift += 1;
-        // reDrawCells(true);
+        shift += 1;
         break;
       }
     }
 
-    resizeSquaresCanvas();
     drawSquares();
+  }
+
+  function viewportCoordToStageCoord(
+    viewportX: number,
+    viewportY: number,
+  ): { x: number; y: number } {
+    return {
+      x: viewportX - stageLoc.x,
+      y: viewportY - stageLoc.y,
+    };
+  }
+
+  // function stageCoordToSquareCoord(x: number, y: number): SquareCoord {}
+
+  function handlePointerDown(ev: PointerEvent) {
+    if (ev.button === 1) return;
+  }
+
+  function handlePointerMove(ev: PointerEvent) {
+    if (pointerState === null) return;
+
+    switch (pointerState.type) {
+      case "penDown": {
+        // TODO
+        break;
+      }
+    }
+  }
+
+  function handlePointerLeave() {
+    if (pointerState !== null) {
+      pointerState = null;
+    }
   }
 </script>
 
 <svelte:window onresize={handleStageResize} onkeypress={handleKeyPress} />
 
-<div class="flex flex-col h-[100dvh]">
+<div style={`flex-direction: ${flexDirection};`} class="flex h-[100dvh]">
   <div class="basis-20 bg-red"></div>
   <div class="basis-60 relative flex-grow bg-gray-900" bind:this={stage}>
     <canvas
-      class={["absolute top-0 left-0 w-full h-full z-4", props.class]}
+      class={[
+        "absolute top-0 left-0 w-full h-full z-4 pointer-events-none",
+        props.class,
+      ]}
       bind:this={canvasGrid}
     ></canvas>
     <canvas
+      onpointerdown={handlePointerDown}
+      onpointermove={handlePointerMove}
+      onpointerleave={handlePointerLeave}
       style="image-rendering: pixelated;"
       class={["absolute top-0 left-0 w-full h-full z-3", props.class]}
       bind:this={canvasSquares}
     ></canvas>
     <canvas
       style="image-rendering: pixelated;"
-      bind:this={canvasGrid}
-      class={["absolute top-0 left-0 w-full h-full z-2 ", props.class]}
+      class={[
+        "absolute top-0 left-0 w-full h-full z-2 pointer-events-none",
+        props.class,
+      ]}
       bind:this={canvasStars}
     ></canvas>
   </div>
