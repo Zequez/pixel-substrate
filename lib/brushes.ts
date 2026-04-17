@@ -56,7 +56,7 @@ export function createSquarePen(pen: CanvasRenderingContext2D) {
   function draw(x: number, y: number, scale: number, color: string) {
     // console.log("Drawing", x, y, scale, color);
     pen.fillStyle = color;
-    pen.fillRect(x, y, scale, scale);
+    pen.fillRect(Math.floor(x), Math.floor(y), scale, scale);
   }
 
   function clear() {

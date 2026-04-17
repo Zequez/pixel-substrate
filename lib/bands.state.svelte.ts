@@ -2,7 +2,7 @@ type Line = (null | string)[];
 type Band = Line[];
 
 function craftEmptyBand(n: number): Band {
-  return new Array(2 ** n).fill(null).map(() => [null]);
+  return new Array(2 ** n).fill(null).map(() => Array(100).fill(null));
 }
 
 function createBandsState(config: {
@@ -38,6 +38,12 @@ function createBandsState(config: {
     const x2 = x % (bandLength + BAND_END_GAP);
     const x3 = x2 < 0 ? x2 + bandLength + BAND_END_GAP : x2;
     return x3;
+  }
+
+  function paint(axis: number, cross: number, size: number, color: string) {
+    // Math.floor(axis)
+    const a = loopPos(Math.floor(axis) + cursors[dimension]);
+    band[Math.floor(cross)]![a] = color;
   }
 
   return {
@@ -86,13 +92,23 @@ function createBandsState(config: {
     get dimension() {
       return dimension;
     },
+    get cursors() {
+      return cursors;
+    },
+    get cursor() {
+      return cursors[dimension];
+    },
     nextDimension() {
       dimension = Math.min(dimension + 1, config.maxBands - 1);
     },
     previousDimension() {
       dimension = Math.max(dimension - 1, 0);
     },
+    shift(amount: number) {
+      cursors[dimension] += amount;
+    },
     loopPos,
+    paint,
   };
 }
 
