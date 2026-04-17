@@ -1,7 +1,7 @@
 import { oklchaToRgba } from "./utils3";
 
-type Line = (null | string)[];
-type Band = Line[];
+export type Line = (null | string)[];
+export type Band = Line[];
 export type LCHA = [
   lightness: number,
   chroma: number,
@@ -50,7 +50,7 @@ function createBandsState(config: {
 
   function paint(axis: number, cross: number, size: number, color: string) {
     // Math.floor(axis)
-    const a = loopPos(Math.floor(axis) + cursors[dimension]);
+    const a = axisToLoopedPos(axis);
     band[Math.floor(cross)]![a] = color;
   }
 
@@ -120,6 +120,70 @@ function createBandsState(config: {
     });
   }
 
+  function fillSpace(
+    axis: number,
+    cross: number,
+    stageLength: number,
+    color: string,
+  ) {
+    const a = Math.floor(axis);
+    const c = Math.floor(cross);
+    const bandSection = readBand(cursors[dimension], stageLength);
+    const visited = new Set<string>();
+    const startColor = bandSection[c]![a];
+    type SquareCoord = { cross: number; axis: number };
+    const pending: SquareCoord[] = [{ cross: c, axis: a }];
+
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      const key = `${current.axis},${current.cross}`;
+
+      if (visited.has(key)) {
+        continue;
+      }
+      visited.add(key);
+
+      if (
+        current.cross < 0 ||
+        current.cross >= bandSection.length ||
+        current.axis < 0 ||
+        current.axis >= bandSection[current.cross]!.length
+      ) {
+        continue;
+      }
+
+      const currentColor = bandSection[current.cross]![current.axis];
+      if (currentColor !== startColor) {
+        continue;
+      }
+
+      band[current.cross]![current.axis + cursors[dimension]] = color;
+
+      pending.push({ cross: current.cross + 1, axis: current.axis });
+      pending.push({ cross: current.cross - 1, axis: current.axis });
+      pending.push({ cross: current.cross, axis: current.axis + 1 });
+      pending.push({ cross: current.cross, axis: current.axis - 1 });
+    }
+  }
+
+  function readBand(x: number, len: number) {
+    const slice: Band = Array(bandSize)
+      .fill(null)
+      .map(() => []);
+    let realBandEnd = bandLength + BAND_END_GAP;
+    for (let pos = x; pos < x + len; pos++) {
+      const posLooped = loopPos(pos);
+      for (let lineN = 0; lineN < bandSize; lineN++) {
+        if (posLooped < bandLength) {
+          slice[lineN]!.push(band[lineN]![posLooped] || null);
+        } else {
+          slice[lineN]!.push(null);
+        }
+      }
+    }
+    return slice;
+  }
+
   return {
     fillWithGiberish(axis: number) {
       const randColor = () =>
@@ -144,23 +208,7 @@ function createBandsState(config: {
     get band() {
       return band;
     },
-    readBand(x: number, len: number) {
-      const slice: Band = Array(bandSize)
-        .fill(null)
-        .map(() => []);
-      let realBandEnd = bandLength + BAND_END_GAP;
-      for (let pos = x; pos < x + len; pos++) {
-        const posLooped = loopPos(pos);
-        for (let lineN = 0; lineN < bandSize; lineN++) {
-          if (posLooped < bandLength) {
-            slice[lineN]!.push(band[lineN]![posLooped] || null);
-          } else {
-            slice[lineN]!.push(null);
-          }
-        }
-      }
-      return slice;
-    },
+    readBand,
     get bandSize() {
       return bandSize;
     },
@@ -189,6 +237,7 @@ function createBandsState(config: {
     addSpace,
     removeSpace,
     emptySpace,
+    fillSpace,
   };
 }
 

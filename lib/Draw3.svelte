@@ -215,8 +215,12 @@
     drawSquares();
   }
 
-  // KEYBOARD
-  // #########################
+  // ██╗  ██╗███████╗██╗   ██╗██████╗  ██████╗  █████╗ ██████╗ ██████╗
+  // ██║ ██╔╝██╔════╝╚██╗ ██╔╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗
+  // █████╔╝ █████╗   ╚████╔╝ ██████╔╝██║   ██║███████║██████╔╝██║  ██║
+  // ██╔═██╗ ██╔══╝    ╚██╔╝  ██╔══██╗██║   ██║██╔══██║██╔══██╗██║  ██║
+  // ██║  ██╗███████╗   ██║   ██████╔╝╚██████╔╝██║  ██║██║  ██║██████╔╝
+  // ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝
 
   function handleKeyPress(ev: KeyboardEvent) {
     switch (ev.code) {
@@ -286,20 +290,25 @@
     drawSquares();
   }
 
+  // ██████╗  ██████╗ ██╗███╗   ██╗████████╗███████╗██████╗
+  // ██╔══██╗██╔═══██╗██║████╗  ██║╚══██╔══╝██╔════╝██╔══██╗
+  // ██████╔╝██║   ██║██║██╔██╗ ██║   ██║   █████╗  ██████╔╝
+  // ██╔═══╝ ██║   ██║██║██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗
+  // ██║     ╚██████╔╝██║██║ ╚████║   ██║   ███████╗██║  ██║
+  // ╚═╝      ╚═════╝ ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
   // #region POINTER
-  // #########################
 
   function handlePointerDown(ev: PointerEvent) {
+    const { cross, axis } = mousePosBand;
     if (ev.button === 1) {
-      return;
+      B.fillSpace(axis, cross, stageLength, colorString);
+      drawSquares();
     } else if (ev.button === 0) {
-      const { cross, axis } = mousePosBand;
       pointerState = { type: "penDown", lastPos: { cross, axis } };
       B.paint(axis, cross, 1, colorString);
       drawSquares(); // Maybe optimize later
       // squarePen.draw(axis, cross, 1, "#ffffff");
     } else if (ev.button === 2) {
-      const { cross, axis } = mousePosBand;
       color = hexRgbaToLcha(B.sampleColor(axis, cross));
     }
   }

@@ -1,3 +1,5 @@
+import type { Band } from "./bands.state.svelte";
+
 export function lchaToRgba(L: number, C: number, H: number, A = 1) {
   // Convert hue to radians
   const hRad = (H * Math.PI) / 180;
