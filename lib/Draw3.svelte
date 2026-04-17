@@ -7,7 +7,7 @@
   // ╚═╝╚═╝     ╚═╝╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
   // #region Imports
 
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { render } from "svelte/server";
   import { createStarsPen, createSquarePen, createGridPen } from "./brushes";
   import { createBandsState, type LCHA } from "./bands.state.svelte";
@@ -46,6 +46,8 @@
   let B = createBandsState({ maxBands: 6, initialBand: 3, minLength: 6 });
   let stageLength = $derived(Math.floor(B.bandSize * aspectRatio));
   let stageSlice = $derived(B.readBand(B.cursor, stageLength));
+
+  let showStateDetails = $state(true);
 
   // black   : lch(0%   0   0)
   // red     : lch(60%  80  30)
@@ -232,17 +234,52 @@
       }
       case "KeyA":
       case "ArrowLeft": {
-        B.shift(-1);
+        if (ev.shiftKey) {
+          B.shift(-4);
+        } else {
+          B.shift(-1);
+        }
         break;
       }
       case "KeyD":
       case "ArrowRight": {
-        B.shift(1);
+        if (ev.shiftKey) {
+          B.shift(4);
+        } else {
+          B.shift(1);
+        }
         break;
       }
-      case "Space": {
-        B.fillWithGiberish(Math.floor(stageLength / 2));
+      case "KeyR": {
+        if (ev.shiftKey) {
+          B.fillWithSpectrum(Math.floor(mousePosBand.axis));
+        } else {
+          B.fillWithGiberish(Math.floor(mousePosBand.axis));
+        }
         drawSquares();
+        break;
+      }
+      case "KeyF": {
+        B.emptySpace(Math.floor(mousePosBand.axis));
+        break;
+      }
+      case "KeyE": {
+        B.addSpace(Math.floor(mousePosBand.axis + 1));
+        break;
+      }
+      case "KeyQ": {
+        B.removeSpace(Math.floor(mousePosBand.axis));
+        break;
+      }
+      case "KeyG": {
+        showStateDetails = !showStateDetails;
+        tick().then(() => {
+          readDimensionFromStage();
+          drawStars();
+          drawSquares();
+        });
+
+        break;
       }
     }
 
@@ -314,30 +351,32 @@
 <div style={`flex-direction: ${flexDirection};`} class="flex h-[100dvh]">
   <!-- #region Data
     ################################### -->
-  <div class="basis-24 p3 shrink-0 bg-stone-600 text-white">
-    <div class="h6 align-middle">
-      Stage (PX):
-      <span class="inline-block i-fa-arrow-right relative top-0.5"></span>
-      {stageLoc.x}
-      <span class="inline-block i-fa-arrow-down relative top-0.5"></span>
-      {stageLoc.y}
-      |
-      {Math.round(stageLoc.w)}x{Math.round(stageLoc.h)} [{Math.round(
-        mousePosStage.x,
-      )}x{Math.round(mousePosStage.y)}]
+  {#if showStateDetails}
+    <div class="basis-24 p3 shrink-0 bg-stone-600 text-white">
+      <div class="h6 align-middle">
+        Stage (PX):
+        <span class="inline-block i-fa-arrow-right relative top-0.5"></span>
+        {stageLoc.x}
+        <span class="inline-block i-fa-arrow-down relative top-0.5"></span>
+        {stageLoc.y}
+        |
+        {Math.round(stageLoc.w)}x{Math.round(stageLoc.h)} [{Math.round(
+          mousePosStage.x,
+        )}x{Math.round(mousePosStage.y)}]
+      </div>
+      <div class="h6">
+        Aspect Ratio: {JSON.stringify(Math.round(aspectRatio * 100) / 100)}
+      </div>
+      <div class="h6">
+        <div
+          style={`background: ${colorString}`}
+          class="inline-block h4 w4"
+        ></div>
+        [{B.dimension}] | SquarePos: {B.bandSize}x{stageLength} [{mousePosBand.cross},
+        {mousePosBand.axis}] | {B.cursor} ({B.loopPos(B.cursor)})
+      </div>
     </div>
-    <div class="h6">
-      Aspect Ratio: {JSON.stringify(Math.round(aspectRatio * 100) / 100)}
-    </div>
-    <div class="h6">
-      <div
-        style={`background: ${colorString}`}
-        class="inline-block h4 w4"
-      ></div>
-      [{B.dimension}] | SquarePos: {B.bandSize}x{stageLength} [{mousePosBand.cross},
-      {mousePosBand.axis}] | {B.cursor} ({B.loopPos(B.cursor)})
-    </div>
-  </div>
+  {/if}
   <div
     class="basis-60 relative flex-grow bg-gray-900 overflow-hidden"
     bind:this={stage}
@@ -397,7 +436,7 @@
     <!-- #region Thingy
     ################################### -->
     <div
-      class="absolute bottom-0 pointer-events-none left-1/2 -translate-x-1/2 inline-flex z-5 overflow-hidden w-20 h-10 bg-white/15 rounded-t-1"
+      class="absolute bottom-0 pointer-events-none left-1/2 -translate-x-1/2 inline-flex z-5 overflow-hidden w-20 h-10"
     >
       <div
         class={`

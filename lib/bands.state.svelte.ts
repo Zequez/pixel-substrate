@@ -1,3 +1,5 @@
+import { oklchaToRgba } from "./utils3";
+
 type Line = (null | string)[];
 type Band = Line[];
 export type LCHA = [
@@ -53,8 +55,69 @@ function createBandsState(config: {
   }
 
   function sampleColor(axis: number, cross: number) {
-    const realAxis = loopPos(Math.floor(axis) + cursors[dimension]);
+    const realAxis = axisToLoopedPos(axis);
     return band[Math.floor(cross)]![realAxis] || "#00000000";
+  }
+
+  function axisToLoopedPos(axis: number) {
+    return loopPos(Math.floor(axis) + cursors[dimension]);
+  }
+
+  function addSpace(axis: number) {
+    const pos = axisToLoopedPos(axis);
+
+    band.forEach((line) => {
+      const shiftLeft = line.length % 2 === 1;
+
+      line = line.splice(pos, 0, null);
+      if (shiftLeft) {
+        // shift(1);
+      }
+    });
+  }
+
+  function removeSpace(axis: number) {
+    const pos = axisToLoopedPos(axis);
+    band.forEach((line) => {
+      if (line.length === 1) {
+        line[0] = null;
+      } else {
+        line.splice(pos, 1);
+      }
+    });
+  }
+
+  function emptySpace(axis: number) {
+    const pos = axisToLoopedPos(axis);
+    band.forEach((line) => {
+      line[pos] = null;
+    });
+  }
+
+  function shift(amount: number) {
+    cursors[dimension] += amount;
+  }
+
+  function fillWithSpectrum(axis: number) {
+    const pos = axisToLoopedPos(axis);
+
+    // Colors must be white, black, and then spectrum
+    // with the size of bandSize
+    // Generate list using lcha, then use lchaToRgba from utils3 to compress it
+    const colorsList = Array(bandSize)
+      .fill(null)
+      .map((_, i) => {
+        console.log(i / bandSize);
+        const lcha: LCHA = [0.8, 0.3, (i / bandSize) * 360, 1];
+        return oklchaToRgba(...lcha);
+      });
+
+    colorsList.unshift("#000000");
+    colorsList.unshift("#ffffff");
+
+    band.forEach((line, i) => {
+      line[pos] = colorsList[i]!;
+    });
   }
 
   return {
@@ -62,7 +125,7 @@ function createBandsState(config: {
       const randColor = () =>
         `#${Math.floor(Math.random() * 0x1000000).toString(16)}`;
 
-      const pos = loopPos(Math.floor(axis) + cursors[dimension]);
+      const pos = axisToLoopedPos(axis);
 
       band.forEach((line) => {
         // Color from #000000 to #ffffff
@@ -74,6 +137,7 @@ function createBandsState(config: {
         // }
       });
     },
+    fillWithSpectrum,
     get bands() {
       return bands;
     },
@@ -118,12 +182,13 @@ function createBandsState(config: {
     previousDimension() {
       dimension = Math.max(dimension - 1, 0);
     },
-    shift(amount: number) {
-      cursors[dimension] += amount;
-    },
+    shift,
     loopPos,
     paint,
     sampleColor,
+    addSpace,
+    removeSpace,
+    emptySpace,
   };
 }
 

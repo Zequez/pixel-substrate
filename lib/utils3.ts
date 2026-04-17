@@ -47,6 +47,42 @@ export function lchaToRgba(L: number, C: number, H: number, A = 1) {
   return rgbaToHex(clamp(r), clamp(g), clamp(b2), A);
 }
 
+export function oklchaToRgba(l: number, c: number, h: number, a = 1) {
+  const hr = (h * Math.PI) / 180;
+
+  const A = c * Math.cos(hr);
+  const B = c * Math.sin(hr);
+
+  // OKLab → LMS
+  const l_ = l + 0.3963377774 * A + 0.2158037573 * B;
+  const m_ = l - 0.1055613458 * A - 0.0638541728 * B;
+  const s_ = l - 0.0894841775 * A - 1.291485548 * B;
+
+  const l3 = l_ ** 3;
+  const m3 = m_ ** 3;
+  const s3 = s_ ** 3;
+
+  // LMS → linear RGB
+  let r = +4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3;
+  let g = -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3;
+  let b = -0.0041960863 * l3 - 0.7034186147 * m3 + 1.707614701 * s3;
+
+  // linear → gamma corrected
+  const gamma = (v: number) =>
+    v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+
+  r = gamma(r);
+  g = gamma(g);
+  b = gamma(b);
+
+  return rgbaToHex(
+    Math.round(Math.min(Math.max(0, r), 1) * 255),
+    Math.round(Math.min(Math.max(0, g), 1) * 255),
+    Math.round(Math.min(Math.max(0, b), 1) * 255),
+    a,
+  );
+}
+
 function rgbaToHex(r: number, g: number, b: number, a = 1) {
   const toHex = (v: number) => Math.round(v).toString(16).padStart(2, "0");
 
