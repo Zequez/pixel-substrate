@@ -10,7 +10,8 @@
   import { onMount } from "svelte";
   import { render } from "svelte/server";
   import { createStarsPen, createSquarePen, createGridPen } from "./brushes";
-  import { createBandsState } from "./bands.state.svelte";
+  import { createBandsState, type LCHA } from "./bands.state.svelte";
+  import { lchaToRgba, hexRgbaToLcha } from "./utils3";
 
   const props: { class?: any } = $props();
 
@@ -45,6 +46,22 @@
   let B = createBandsState({ maxBands: 6, initialBand: 3, minLength: 6 });
   let stageLength = $derived(Math.floor(B.bandSize * aspectRatio));
   let stageSlice = $derived(B.readBand(B.cursor, stageLength));
+
+  // black   : lch(0%   0   0)
+  // red     : lch(60%  80  30)
+  // orange  : lch(70%  80  60)
+  // yellow  : lch(90%  80 100)
+  // green   : lch(65%  80 140)
+  // cyan    : lch(70%  70 200)
+  // blue    : lch(55%  80 260)
+  // violet  : lch(60%  80 310)
+  // white   : lch(100% 0   0)
+
+  let color = $state<LCHA>([65, 80, 140, 1]);
+  // let colorString = $derived(
+  //   `lch(${color[0]}% ${color[1]} ${color[2]} ${color[3]})`,
+  // );
+  let colorString = $derived(lchaToRgba(...color));
 
   // Mouse position tracking
   // #######################
@@ -222,7 +239,7 @@
         break;
       }
       case "Space": {
-        B.fillCurrentWithGiberish();
+        B.fillWithGiberish(Math.floor(stageLength / 2));
         drawSquares();
       }
     }
@@ -234,13 +251,17 @@
   // #########################
 
   function handlePointerDown(ev: PointerEvent) {
-    if (ev.button === 1) return;
-    if (ev.button === 0) {
+    if (ev.button === 1) {
+      return;
+    } else if (ev.button === 0) {
       const { cross, axis } = mousePosBand;
       pointerState = { type: "penDown" };
-      B.paint(axis, cross, 1, "#ffffff");
+      B.paint(axis, cross, 1, colorString);
       drawSquares(); // Maybe optimize later
       // squarePen.draw(axis, cross, 1, "#ffffff");
+    } else if (ev.button === 2) {
+      const { cross, axis } = mousePosBand;
+      color = hexRgbaToLcha(B.sampleColor(axis, cross));
     }
   }
 
@@ -257,7 +278,7 @@
       }
       case "penDown": {
         const { cross, axis } = mousePosBand;
-        B.paint(axis, cross, 1, "#ffffff");
+        B.paint(axis, cross, 1, colorString);
         drawSquares(); // Maybe optimize later
         // squarePen.draw(axis, cross, 1, "#ffffff");
         break;
@@ -283,6 +304,8 @@
 <svelte:window onresize={handleStageResize} onkeypress={handleKeyPress} />
 
 <div style={`flex-direction: ${flexDirection};`} class="flex h-[100dvh]">
+  <!-- #region Data
+    ################################### -->
   <div class="basis-24 p3 shrink-0 bg-stone-600 text-white">
     <div class="h6 align-middle">
       Stage (PX):
@@ -299,6 +322,10 @@
       Aspect Ratio: {JSON.stringify(Math.round(aspectRatio * 100) / 100)}
     </div>
     <div class="h6">
+      <div
+        style={`background: ${colorString}`}
+        class="inline-block h4 w4"
+      ></div>
       [{B.dimension}] | SquarePos: {B.bandSize}x{stageLength} [{mousePosBand.cross},
       {mousePosBand.axis}] | {B.cursor} ({B.loopPos(B.cursor)})
     </div>
@@ -321,6 +348,8 @@
       `}
       class="bg-white/20 pointer-events-none b-1.5 b-white/50 absolute left-0 top-0 z-10 rounded-1"
     ></div>
+    <!-- #region Canvas
+    ################################### -->
     <canvas
       class={[
         "absolute top-0 left-0 w-full h-full z-4 pointer-events-none",
@@ -341,6 +370,7 @@
       onpointermove={handlePointerMove}
       onpointerleave={handlePointerLeave}
       onpointerup={handlePointerLeave}
+      oncontextmenu={(ev) => ev.preventDefault()}
       style="image-rendering: pixelated;"
       class={[
         "absolute top-0 left-0 w-full h-full z-3 cursor-crosshair",
@@ -356,6 +386,8 @@
       ]}
       bind:this={canvasStars}
     ></canvas>
+    <!-- #region Thingy
+    ################################### -->
     <div
       class="absolute bottom-0 pointer-events-none left-1/2 -translate-x-1/2 inline-flex z-5 overflow-hidden w-20 h-10 bg-white/15 rounded-t-1"
     >
@@ -385,6 +417,8 @@
       ></div>
     </div>
   </div>
+  <!-- #region Bands
+    ################################### -->
   <div class="basis-24 p3 grow-0 shrink-0 bg-slate-600">
     <div class="bg-black rounded-1 flex-ss flex-col">
       {#each B.bands as band, i (i)}

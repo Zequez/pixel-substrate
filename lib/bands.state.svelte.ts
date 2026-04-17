@@ -1,5 +1,11 @@
 type Line = (null | string)[];
 type Band = Line[];
+export type LCHA = [
+  lightness: number,
+  chroma: number,
+  hue: number,
+  alpha: number,
+];
 
 function craftEmptyBand(n: number): Band {
   return new Array(2 ** n).fill(null).map(() => Array(100).fill(null));
@@ -21,7 +27,7 @@ function createBandsState(config: {
   // 3rd band: ||||
   // 4th band: |||| ||||
   let bands: Band[] = $state(
-    new Array(config.maxBands).fill(null).map((_, i) => craftEmptyBand(i)),
+    new Array(config.maxBands).fill(null).map((_, i) => craftEmptyBand(i + 1)),
   );
 
   // One cursor per band
@@ -46,18 +52,26 @@ function createBandsState(config: {
     band[Math.floor(cross)]![a] = color;
   }
 
+  function sampleColor(axis: number, cross: number) {
+    const realAxis = loopPos(Math.floor(axis) + cursors[dimension]);
+    return band[Math.floor(cross)]![realAxis] || "#00000000";
+  }
+
   return {
-    fillCurrentWithGiberish() {
+    fillWithGiberish(axis: number) {
       const randColor = () =>
         `#${Math.floor(Math.random() * 0x1000000).toString(16)}`;
+
+      const pos = loopPos(Math.floor(axis) + cursors[dimension]);
+
       band.forEach((line) => {
         // Color from #000000 to #ffffff
-
-        let start = line.length - 1;
-        let len = Math.floor(Math.random() * 7);
-        for (let i = start; i <= start + len; i++) {
-          line[i] = randColor();
-        }
+        line[pos] = randColor();
+        // let start = line.length - 1;
+        // let len = Math.floor(Math.random() * 7);
+        // for (let i = start; i <= start + len; i++) {
+        //   // line[i] = randColor();
+        // }
       });
     },
     get bands() {
@@ -109,6 +123,7 @@ function createBandsState(config: {
     },
     loopPos,
     paint,
+    sampleColor,
   };
 }
 
