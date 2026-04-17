@@ -100,3 +100,49 @@ export function hexRgbaToLcha(hex: string): [number, number, number, number] {
 
   return [L, C, H, a / 255];
 }
+
+type SquareCoord = { cross: number; axis: number };
+
+export function interpolatePoints(
+  fromF: SquareCoord,
+  toF: SquareCoord,
+): SquareCoord[] {
+  const from = { axis: Math.floor(fromF.axis), cross: Math.floor(fromF.cross) };
+  const to = { axis: Math.floor(toF.axis), cross: Math.floor(toF.cross) };
+
+  if (from.axis === to.axis && from.cross === to.cross) {
+    return [from];
+  }
+
+  const coordinates: SquareCoord[] = [];
+  const deltaX = Math.abs(to.axis - from.axis);
+  const deltaY = Math.abs(to.cross - from.cross);
+  const stepX = from.axis < to.axis ? 1 : -1;
+  const stepY = from.cross < to.cross ? 1 : -1;
+
+  let currentX = from.axis;
+  let currentY = from.cross;
+  let error = deltaX - deltaY;
+
+  while (true) {
+    coordinates.push({ axis: currentX, cross: currentY });
+
+    if (currentX === to.axis && currentY === to.cross) {
+      break;
+    }
+
+    const doubledError = error * 2;
+
+    if (doubledError > -deltaY) {
+      error -= deltaY;
+      currentX += stepX;
+    }
+
+    if (doubledError < deltaX) {
+      error += deltaX;
+      currentY += stepY;
+    }
+  }
+
+  return coordinates;
+}

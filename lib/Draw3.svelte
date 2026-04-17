@@ -11,7 +11,7 @@
   import { render } from "svelte/server";
   import { createStarsPen, createSquarePen, createGridPen } from "./brushes";
   import { createBandsState, type LCHA } from "./bands.state.svelte";
-  import { lchaToRgba, hexRgbaToLcha } from "./utils3";
+  import { lchaToRgba, hexRgbaToLcha, interpolatePoints } from "./utils3";
 
   const props: { class?: any } = $props();
 
@@ -114,7 +114,9 @@
   // ##############################
 
   let pointerState = $state<
-    { type: "inactive" } | { type: "moving" } | { type: "penDown" }
+    | { type: "inactive" }
+    | { type: "moving" }
+    | { type: "penDown"; lastPos: SquareCoord }
   >({ type: "inactive" });
 
   //  ██████╗ ███╗   ██╗███╗   ███╗ ██████╗ ██╗   ██╗███╗   ██╗████████╗
@@ -255,7 +257,7 @@
       return;
     } else if (ev.button === 0) {
       const { cross, axis } = mousePosBand;
-      pointerState = { type: "penDown" };
+      pointerState = { type: "penDown", lastPos: { cross, axis } };
       B.paint(axis, cross, 1, colorString);
       drawSquares(); // Maybe optimize later
       // squarePen.draw(axis, cross, 1, "#ffffff");
@@ -277,8 +279,14 @@
         break;
       }
       case "penDown": {
+        const prevPos = pointerState.lastPos;
         const { cross, axis } = mousePosBand;
-        B.paint(axis, cross, 1, colorString);
+        const points = interpolatePoints(prevPos, { cross, axis });
+
+        points.forEach(({ axis, cross }) => {
+          B.paint(axis, cross, 1, colorString);
+        });
+        pointerState.lastPos = { cross, axis };
         drawSquares(); // Maybe optimize later
         // squarePen.draw(axis, cross, 1, "#ffffff");
         break;
