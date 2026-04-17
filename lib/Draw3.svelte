@@ -12,6 +12,7 @@
   import { createStarsPen, createSquarePen, createGridPen } from "./brushes";
   import { createBandsState, type LCHA } from "./bands.state.svelte";
   import { lchaToRgba, hexRgbaToLcha, interpolatePoints } from "./utils3";
+  import { lsState } from "/@shared/ls-state.svelte";
 
   const props: { class?: any } = $props();
 
@@ -47,8 +48,10 @@
   let stageLength = $derived(Math.floor(B.bandSize * aspectRatio));
   let stageSlice = $derived(B.readBand(B.cursor, stageLength));
 
-  let showStateDetails = $state(true);
-  let showMiniMap = $state(true);
+  let UI = lsState("UI", {
+    showDetails: false,
+    showMiniMap: true,
+  });
 
   // black   : lch(0%   0   0)
   // red     : lch(60%  80  30)
@@ -60,11 +63,11 @@
   // violet  : lch(60%  80 310)
   // white   : lch(100% 0   0)
 
-  let color = $state<LCHA>([65, 80, 140, 1]);
+  let color = $state<LCHA | null>([100, 0, 140, 1]);
   // let colorString = $derived(
   //   `lch(${color[0]}% ${color[1]} ${color[2]} ${color[3]})`,
   // );
-  let colorString = $derived(lchaToRgba(...color));
+  let colorString = $derived(color ? lchaToRgba(...color) : null);
 
   // Mouse position tracking
   // #######################
@@ -76,6 +79,12 @@
   let mousePosBand: SquareCoord = $derived(stagePosToBandPos(mousePosStage));
   let axisBlockSize = $derived(stageLoc.w / stageLength);
   let crossBlockSize = $derived(stageLoc.h / B.bandSize);
+  let mousePosColor = $derived(
+    B.sampleColor(mousePosBand.axis, mousePosBand.cross),
+  );
+  let mouseIndicatorDark = $derived(
+    mousePosColor ? hexRgbaToLcha(mousePosColor)[0] > 50 : null,
+  );
 
   function clientPosToStagePos(clientPos: { x: number; y: number }) {
     return {
@@ -277,7 +286,7 @@
         break;
       }
       case "KeyG": {
-        showStateDetails = !showStateDetails;
+        UI.showDetails = !UI.showDetails;
         tick().then(() => {
           readDimensionFromStage();
           drawStars();
@@ -287,7 +296,7 @@
         break;
       }
       case "KeyV": {
-        showMiniMap = !showMiniMap;
+        UI.showMiniMap = !UI.showMiniMap;
         tick().then(() => {
           readDimensionFromStage();
           drawStars();
@@ -319,7 +328,8 @@
       // drawSquares(); // Maybe optimize later
       squarePen.draw(axis, cross, 1, colorString);
     } else if (ev.button === 2) {
-      color = hexRgbaToLcha(B.sampleColor(axis, cross));
+      const sampled = B.sampleColor(axis, cross);
+      color = sampled ? hexRgbaToLcha(sampled) : null;
     }
   }
 
@@ -371,7 +381,7 @@
 <div style={`flex-direction: ${flexDirection};`} class="flex h-[100dvh]">
   <!-- #region Data
     ################################### -->
-  {#if showStateDetails}
+  {#if UI.showDetails}
     <div class="basis-24 p3 shrink-0 bg-stone-600 text-white">
       <div class="h6 align-middle">
         Stage (PX):
@@ -411,9 +421,11 @@
       style={`
         width: ${axisBlockSize}px;
         height: ${crossBlockSize}px;
+        background-color: ${mouseIndicatorDark ? "#00000033" : "#ffffff33"};
+        border-color: ${mouseIndicatorDark ? "#00000033" : "#ffffff33"};
         transform: translate(${Math.floor(mousePosBand.axis) * axisBlockSize}px, ${Math.floor(mousePosBand.cross) * crossBlockSize}px);
       `}
-      class="bg-white/20 pointer-events-none b-1.5 b-white/50 absolute left-0 top-0 z-10 rounded-1"
+      class="pointer-events-none b-1.5 absolute left-0 top-0 z-10 rounded-1"
     ></div>
     <!-- #region Canvas
     ################################### -->
@@ -486,7 +498,7 @@
   </div>
   <!-- #region Bands
     ################################### -->
-  {#if showMiniMap}
+  {#if UI.showMiniMap}
     <div class="basis-24 p3 grow-0 shrink-0 bg-slate-600">
       <div class="bg-black rounded-1 flex-ss flex-col">
         {#each B.bands as band, i (i)}

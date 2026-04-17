@@ -48,15 +48,20 @@ function createBandsState(config: {
     return x3;
   }
 
-  function paint(axis: number, cross: number, size: number, color: string) {
+  function paint(
+    axis: number,
+    cross: number,
+    size: number,
+    color: string | null,
+  ) {
     // Math.floor(axis)
     const a = axisToLoopedPos(axis);
     band[Math.floor(cross)]![a] = color;
   }
 
-  function sampleColor(axis: number, cross: number) {
+  function sampleColor(axis: number, cross: number): string | null {
     const realAxis = axisToLoopedPos(axis);
-    return band[Math.floor(cross)]![realAxis] || "#00000000";
+    return band[Math.floor(cross)]![realAxis] || null;
   }
 
   function axisToLoopedPos(axis: number) {
@@ -123,7 +128,7 @@ function createBandsState(config: {
     axis: number,
     cross: number,
     stageLength: number,
-    color: string,
+    color: string | null,
   ) {
     const a = Math.floor(axis);
     const c = Math.floor(cross);

@@ -140,10 +140,15 @@ export function createStarsBgPenAI(
 
 export function createSquarePen(pen: CanvasRenderingContext2D) {
   // console.log("Creating pen");
-  function draw(x: number, y: number, scale: number, color: string) {
+  function draw(x: number, y: number, scale: number, color: string | null) {
     // console.log("Drawing", x, y, scale, color);
-    pen.fillStyle = color;
-    pen.fillRect(Math.floor(x), Math.floor(y), scale, scale);
+    console.log(color);
+    if (!color) {
+      pen.clearRect(Math.floor(x), Math.floor(y), scale, scale);
+    } else {
+      pen.fillStyle = color;
+      pen.fillRect(Math.floor(x), Math.floor(y), scale, scale);
+    }
   }
 
   function clear() {
