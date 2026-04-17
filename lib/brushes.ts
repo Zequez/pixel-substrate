@@ -13,9 +13,14 @@ export function createGridPen(
   return { draw };
 }
 
-export function createStarsPen(pen: CanvasRenderingContext2D, density: number) {
+export function createStarsPen(
+  pen: CanvasRenderingContext2D,
+  density2: number,
+) {
   // const pen = canvas.get
   pen.fillStyle = "black";
+
+  const density = density2;
 
   function draw(x: number, y: number, w: number, h: number) {
     pen.fillRect(x, y, w, h);

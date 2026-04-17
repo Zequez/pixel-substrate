@@ -1,4 +1,12 @@
 <script lang="ts">
+  // ██╗███╗   ███╗██████╗  ██████╗ ██████╗ ████████╗███████╗
+  // ██║████╗ ████║██╔══██╗██╔═══██╗██╔══██╗╚══██╔══╝██╔════╝
+  // ██║██╔████╔██║██████╔╝██║   ██║██████╔╝   ██║   ███████╗
+  // ██║██║╚██╔╝██║██╔═══╝ ██║   ██║██╔══██╗   ██║   ╚════██║
+  // ██║██║ ╚═╝ ██║██║     ╚██████╔╝██║  ██║   ██║   ███████║
+  // ╚═╝╚═╝     ╚═╝╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
+  // #region Imports
+
   import { onMount } from "svelte";
   import { render } from "svelte/server";
   import { createStarsPen, createSquarePen, createGridPen } from "./brushes";
@@ -18,6 +26,14 @@
   const STARS_DOWNSCALING = 1;
   const MAX_DOWNSCALING = 6;
 
+  // ███████╗████████╗ █████╗ ████████╗███████╗
+  // ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██╔════╝
+  // ███████╗   ██║   ███████║   ██║   █████╗
+  // ╚════██║   ██║   ██╔══██║   ██║   ██╔══╝
+  // ███████║   ██║   ██║  ██║   ██║   ███████╗
+  // ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚══════╝
+  // #region State
+
   let direction: "r" | "b" | "t" | "l" = $state("r");
   let flexDirection = $derived(direction === "r" ? "column" : "row");
 
@@ -29,20 +45,38 @@
   let stageLength = $derived(Math.floor(B.bandSize * aspectRatio));
   let stageSlice = $derived(B.readBand(shift, stageLength));
 
-  // VIEWPORT STATE
-  // let dimension = $state(3);
-  // let bands: string[][] = Array(MAX_DOWNSCALING).fill([] as string[]);
-  // let band = $derived(bands[dimension]!);
-  // let cross = $derived(2 ** (dimension - 1));
-  // let axis = $derived(Math.floor(cross * aspectRatio));
-
-  // let axisMaxLength = $derived.by(() => {
-  //   const finestBand = bands[bands.length - 1]!;
-  //   return Math.max(...finestBand.map((color) => color.length));
-  // });
-  // let shiftLimit = $derived(bands);
-
   type SquareCoord = { cross: number; axis: number };
+
+  // Mouse position tracking
+  // #######################
+
+  let mouseMoved = $state(false);
+  let mousePosClient = $state({ x: 0, y: 0 }); // check handleMouseMove
+  let mousePosStage = $derived(clientPosToStagePos(mousePosClient));
+  let mousePosBand = $state<SquareCoord>({ cross: 0, axis: 0 });
+
+  function clientPosToStagePos(clientPos: { x: number; y: number }) {
+    return {
+      x: Math.max(0, clientPos.x - stageLoc.x),
+      y: Math.max(0, clientPos.y - stageLoc.y),
+    };
+  }
+
+  let stagePosToAngle = $derived.by(() => {
+    const { x, y } = mousePosStage;
+    const { w, h } = stageLoc;
+
+    const originX = w / 2;
+    const originY = h;
+
+    const dx = x - originX;
+    const dy = originY - y;
+
+    const angleRad = Math.atan2(dx, dy);
+    const angleDeg = angleRad * (180 / Math.PI);
+
+    return angleDeg;
+  });
 
   let pointerState = $state<null | {
     type: "penDown";
@@ -54,6 +88,14 @@
   //   bands[level] = Array(crossForLevel).fill(["yellow", "orange", "blue"]);
   // }
 
+  //  ██████╗ ███╗   ██╗███╗   ███╗ ██████╗ ██╗   ██╗███╗   ██╗████████╗
+  // ██╔═══██╗████╗  ██║████╗ ████║██╔═══██╗██║   ██║████╗  ██║╚══██╔══╝
+  // ██║   ██║██╔██╗ ██║██╔████╔██║██║   ██║██║   ██║██╔██╗ ██║   ██║
+  // ██║   ██║██║╚██╗██║██║╚██╔╝██║██║   ██║██║   ██║██║╚██╗██║   ██║
+  // ╚██████╔╝██║ ╚████║██║ ╚═╝ ██║╚██████╔╝╚██████╔╝██║ ╚████║   ██║
+  //  ╚═════╝ ╚═╝  ╚═══╝╚═╝     ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝   ╚═╝
+  // #region On Mount
+
   onMount(() => {
     // gridPen = createGridPen(canvasGrid.getContext("2d")!, dimension, "x");
     starsPen = createStarsPen(canvasStars.getContext("2d")!, 100);
@@ -63,6 +105,15 @@
     drawStars();
     drawSquares();
   });
+
+  //  ██████╗ ██████╗ ███╗   ███╗███╗   ███╗ █████╗ ███╗   ██╗██████╗ ███████╗
+  // ██╔════╝██╔═══██╗████╗ ████║████╗ ████║██╔══██╗████╗  ██║██╔══██╗██╔════╝
+  // ██║     ██║   ██║██╔████╔██║██╔████╔██║███████║██╔██╗ ██║██║  ██║███████╗
+  // ██║     ██║   ██║██║╚██╔╝██║██║╚██╔╝██║██╔══██║██║╚██╗██║██║  ██║╚════██║
+  // ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║ ╚═╝ ██║██║  ██║██║ ╚████║██████╔╝███████║
+  //  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝ ╚══════╝
+
+  // #region Cmd
 
   function readDimensionFromStage() {
     let {
@@ -111,6 +162,14 @@
     const { w, h } = stageLoc;
     gridPen.draw(0, 0, w, h);
   }
+
+  // ███████╗██╗   ██╗███████╗███╗   ██╗████████╗███████╗
+  // ██╔════╝██║   ██║██╔════╝████╗  ██║╚══██╔══╝██╔════╝
+  // █████╗  ██║   ██║█████╗  ██╔██╗ ██║   ██║   ███████╗
+  // ██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║╚██╗██║   ██║   ╚════██║
+  // ███████╗ ╚████╔╝ ███████╗██║ ╚████║   ██║   ███████║
+  // ╚══════╝  ╚═══╝  ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
+  // #region Events
 
   function handleStageResize() {
     readDimensionFromStage();
@@ -168,6 +227,8 @@
   }
 
   function handlePointerMove(ev: PointerEvent) {
+    if (!mouseMoved) mouseMoved = true;
+    mousePosClient = { x: ev.clientX, y: ev.clientY };
     if (pointerState === null) return;
 
     switch (pointerState.type) {
@@ -183,6 +244,14 @@
       pointerState = null;
     }
   }
+
+  // ████████╗██████╗ ███████╗██╗     ██╗     ██╗███████╗
+  // ╚══██╔══╝██╔══██╗██╔════╝██║     ██║     ██║██╔════╝
+  //    ██║   ██████╔╝█████╗  ██║     ██║     ██║███████╗
+  //    ██║   ██╔══██╗██╔══╝  ██║     ██║     ██║╚════██║
+  //    ██║   ██║  ██║███████╗███████╗███████╗██║███████║
+  //    ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝╚══════╝
+  // #region Trellis
 </script>
 
 <svelte:window onresize={handleStageResize} onkeypress={handleKeyPress} />
@@ -197,6 +266,8 @@
       {stageLoc.y}
       |
       {stageLoc.w}x{stageLoc.h}
+      |
+      {Math.round(mousePosStage.x)}x{Math.round(mousePosStage.y)}
     </div>
     <div class="h6">
       Aspect Ratio: {JSON.stringify(Math.round(aspectRatio * 100) / 100)}
@@ -231,26 +302,64 @@
       ]}
       bind:this={canvasStars}
     ></canvas>
+    <div
+      class="absolute bottom-0 left-1/2 -translate-x-1/2 inline-flex z-5 overflow-hidden w-20 h-10 bg-white/15 rounded-t-1"
+    >
+      <div
+        class={`
+        absolute bottom-0 left-1/2
+        -translate-x-1/2
+        bg-green-500/50
+        rounded-t-full h-4 w-6 b-2 b-b-0 b-green-500`}
+      ></div>
+
+      {#if mouseMoved}
+        <div
+          style={`transform: rotate(${stagePosToAngle - 90}deg)`}
+          class={`
+        absolute bottom-0 left-1/2 origin-center-left translate-y-1px
+        bg-green-200
+        h-2px w-20px `}
+        ></div>
+      {/if}
+      <div
+        class={`
+        absolute bottom-0 left-1/2
+        -translate-x-1/2
+        bg-green-400
+        rounded-t-full h-2 w-5 b-2 b-b-0 b-green-500`}
+      ></div>
+    </div>
   </div>
   <div class="basis-24 p3 grow-0 shrink-0 bg-slate-600">
-    <div class="bg-white/20">
+    <div class="bg-black flex-ss flex-col">
       {#each B.bands as band, i (i)}
         {@const scale = i + 1}
+        {@const pxSize = 8 / scale}
         <div
           class={[
-            "flex flex-col",
-            { "shadow-[inset_0_0_1px_#fff]": i === B.dimension },
+            "flex-ss flex-col relative ",
+            { "bg-white/0": i === B.dimension },
           ]}
         >
-          {#each band as line, i (i)}
-            <div class="flex relative">
-              {#each line as block, j}
+          {#each band as line, j (j)}
+            <div
+              style={`width: ${pxSize * (line.length + 0)}px;`}
+              class="flex relative"
+            >
+              {#each line as block, k (k)}
                 <div
-                  style={`background-color: ${block}; width: ${8 / scale}px; height: ${8 / scale}px`}
+                  style={`background-color: ${block}; width: ${pxSize}px; height: ${pxSize}px`}
                 ></div>
               {/each}
             </div>
           {/each}
+          {#if i === B.dimension}
+            <div
+              style={`width: ${pxSize * stageLength}px; left: ${pxSize * shift}px`}
+              class="absolute top-0 left-0 h-full b b-white/50 bg-white/20"
+            ></div>
+          {/if}
         </div>
       {/each}
     </div>

@@ -10,18 +10,29 @@ function createBandsState(config: {
   initialBand: number;
   minLength: number;
 }) {
+  // When dimension changes, the band changes
+  // Current dimension
+  // Each higher dimension duplicates the pixels in the bands
+  let dimension = $state(config.initialBand);
+
+  // There is one band per dimension
+  // 1st band: |
+  // 2nd band: ||
+  // 3rd band: ||||
+  // 4th band: |||| ||||
   let bands: Band[] = $state(
     new Array(config.maxBands).fill(null).map((_, i) => craftEmptyBand(i)),
   );
-  console.log(bands);
 
-  let dimension = $state(config.initialBand);
+  // One cursor per band
+  let cursors = $state(Array(config.maxBands).fill(0));
 
+  // There is
   let band = $derived(bands[dimension]!);
   let bandSize = $derived(band.length);
   let bandLength = $derived(Math.max(...band.map((line) => line.length)));
 
-  const BAND_END_GAP = 3;
+  const BAND_END_GAP = 0;
 
   function loopPos(x: number) {
     const x2 = x % (bandLength + BAND_END_GAP);
@@ -76,10 +87,10 @@ function createBandsState(config: {
       return dimension;
     },
     nextDimension() {
-      dimension = (dimension + 1) % config.maxBands;
+      dimension = Math.min(dimension + 1, config.maxBands - 1);
     },
     previousDimension() {
-      dimension = (dimension - 1 + config.maxBands) % config.maxBands;
+      dimension = Math.max(dimension - 1, 0);
     },
     loopPos,
   };
