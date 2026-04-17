@@ -107,7 +107,6 @@ function createBandsState(config: {
     const colorsList = Array(bandSize)
       .fill(null)
       .map((_, i) => {
-        console.log(i / bandSize);
         const lcha: LCHA = [0.8, 0.3, (i / bandSize) * 360, 1];
         return oklchaToRgba(...lcha);
       });
@@ -157,7 +156,8 @@ function createBandsState(config: {
         continue;
       }
 
-      band[current.cross]![current.axis + cursors[dimension]] = color;
+      const loopedAxis = loopPos(current.axis + cursors[dimension]);
+      band[current.cross]![loopedAxis] = color;
 
       pending.push({ cross: current.cross + 1, axis: current.axis });
       pending.push({ cross: current.cross - 1, axis: current.axis });

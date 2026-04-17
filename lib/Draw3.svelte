@@ -48,6 +48,7 @@
   let stageSlice = $derived(B.readBand(B.cursor, stageLength));
 
   let showStateDetails = $state(true);
+  let showMiniMap = $state(true);
 
   // black   : lch(0%   0   0)
   // red     : lch(60%  80  30)
@@ -285,6 +286,15 @@
 
         break;
       }
+      case "KeyV": {
+        showMiniMap = !showMiniMap;
+        tick().then(() => {
+          readDimensionFromStage();
+          drawStars();
+          drawSquares();
+        });
+        break;
+      }
     }
 
     drawSquares();
@@ -306,8 +316,8 @@
     } else if (ev.button === 0) {
       pointerState = { type: "penDown", lastPos: { cross, axis } };
       B.paint(axis, cross, 1, colorString);
-      drawSquares(); // Maybe optimize later
-      // squarePen.draw(axis, cross, 1, "#ffffff");
+      // drawSquares(); // Maybe optimize later
+      squarePen.draw(axis, cross, 1, colorString);
     } else if (ev.button === 2) {
       color = hexRgbaToLcha(B.sampleColor(axis, cross));
     }
@@ -331,9 +341,10 @@
 
         points.forEach(({ axis, cross }) => {
           B.paint(axis, cross, 1, colorString);
+          squarePen.draw(axis, cross, 1, colorString);
         });
         pointerState.lastPos = { cross, axis };
-        drawSquares(); // Maybe optimize later
+        // drawSquares(); // Maybe optimize later
         // squarePen.draw(axis, cross, 1, "#ffffff");
         break;
       }
@@ -475,37 +486,39 @@
   </div>
   <!-- #region Bands
     ################################### -->
-  <div class="basis-24 p3 grow-0 shrink-0 bg-slate-600">
-    <div class="bg-black rounded-1 flex-ss flex-col">
-      {#each B.bands as band, i (i)}
-        {@const scale = i + 1}
-        {@const pxSize = 8 / scale}
-        <div
-          class={[
-            "flex-ss flex-col relative ",
-            { "bg-white/0": i === B.dimension },
-          ]}
-        >
-          {#each band as line, j (j)}
-            <div
-              style={`width: ${pxSize * (line.length + 0)}px;`}
-              class="flex relative"
-            >
-              {#each line as block, k (k)}
-                <div
-                  style={`background-color: ${block}; width: ${pxSize}px; height: ${pxSize}px`}
-                ></div>
-              {/each}
-            </div>
-          {/each}
-          {#if i === B.dimension}
-            <div
-              style={`width: ${pxSize * stageLength}px; left: ${pxSize * B.cursor}px`}
-              class="absolute top-0 left-0 h-full b b-white/50 bg-white/20"
-            ></div>
-          {/if}
-        </div>
-      {/each}
+  {#if showMiniMap}
+    <div class="basis-24 p3 grow-0 shrink-0 bg-slate-600">
+      <div class="bg-black rounded-1 flex-ss flex-col">
+        {#each B.bands as band, i (i)}
+          {@const scale = i + 1}
+          {@const pxSize = 8 / scale}
+          <div
+            class={[
+              "flex-ss flex-col relative ",
+              { "bg-white/0": i === B.dimension },
+            ]}
+          >
+            {#each band as line, j (j)}
+              <div
+                style={`width: ${pxSize * (line.length + 0)}px;`}
+                class="flex relative"
+              >
+                {#each line as block, k (k)}
+                  <div
+                    style={`background-color: ${block}; width: ${pxSize}px; height: ${pxSize}px`}
+                  ></div>
+                {/each}
+              </div>
+            {/each}
+            {#if i === B.dimension}
+              <div
+                style={`width: ${pxSize * stageLength}px; left: ${pxSize * B.cursor}px`}
+                class="absolute top-0 left-0 h-full b b-white/50 bg-white/20"
+              ></div>
+            {/if}
+          </div>
+        {/each}
+      </div>
     </div>
-  </div>
+  {/if}
 </div>
