@@ -389,6 +389,7 @@
       B.fillSpace(axis, cross, stageLength, colorString);
       drawSquares();
     } else if (ev.button === 0) {
+      const sampled = B.sampleColor(axis, cross);
       pointerState = { type: "penDown", lastPos: { cross, axis } };
       B.paint(axis, cross, 1, colorString);
       // drawSquares(); // Maybe optimize later
@@ -415,6 +416,10 @@
         const prevPos = pointerState.lastPos;
         const { cross, axis } = mousePosBand;
         const points = interpolatePoints(prevPos, { cross, axis });
+
+        const sampled = B.sampleColor(axis, cross);
+        // const colorStringNow =
+        // sampled === null && colorString === null ? "#ffffffff" : colorString;
 
         points.forEach(({ axis, cross }) => {
           B.paint(axis, cross, 1, colorString);
@@ -526,7 +531,7 @@
       style={`
         width: ${axisBlockSize}px;
         height: ${crossBlockSize}px;
-        background-color: ${mouseIndicatorDark ? "#00000033" : "#ffffff33"};
+        background-color: ${colorString ? colorString.slice(0, 7) + "aa" : "transparent"};
         border-color: ${mouseIndicatorDark ? "#00000033" : "#ffffff33"};
         transform: translate(${Math.floor(mousePosBand.axis) * axisBlockSize}px, ${Math.floor(mousePosBand.cross) * crossBlockSize}px);
       `}
