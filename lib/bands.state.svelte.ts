@@ -18,10 +18,22 @@ function createBandsState(config: {
   initialBand: number;
   minLength: number;
 }) {
+  function loadFromLS<K>(k: string, el: () => K) {
+    const rawValue = localStorage.getItem(k);
+    if (rawValue) {
+      return JSON.parse(rawValue) as K;
+    } else {
+      return el();
+    }
+  }
+
   // When dimension changes, the band changes
   // Current dimension
   // Each higher dimension duplicates the pixels in the bands
-  let dimension = $state(config.initialBand);
+  let dimension = $state(loadFromLS("dimension", () => config.initialBand));
+  $effect(() => {
+    localStorage.setItem("dimension", JSON.stringify(dimension));
+  });
 
   // There is one band per dimension
   // 1st band: |
@@ -29,24 +41,55 @@ function createBandsState(config: {
   // 3rd band: ||||
   // 4th band: |||| ||||
   let bands: Band[] = $state(
-    new Array(config.maxBands).fill(null).map((_, i) => craftEmptyBand(i + 1)),
+    loadFromLS("bands2", () => {
+      return new Array(config.maxBands)
+        .fill(null)
+        .map((_, i) => craftEmptyBand(i + 1));
+    }),
   );
+  let bandsSaveTimer: number | null = null;
+  $effect(() => {
+    JSON.stringify(bands);
+    clearTimeout(bandsSaveTimer!);
+    bandsSaveTimer = setTimeout(() => {
+      localStorage.setItem("bands", JSON.stringify(bands));
+    }, 500);
+  });
 
   // One cursor per band
-  let cursors = $state(Array(config.maxBands).fill(0));
+  let cursors = $state(
+    loadFromLS("cursors", () => Array(config.maxBands).fill(0)),
+  );
+  $effect(() => {
+    localStorage.setItem("cursors", JSON.stringify(cursors));
+  });
 
   // There is
   let band = $derived(bands[dimension]!);
   let bandSize = $derived(band.length);
   let bandLength = $derived(Math.max(...band.map((line) => line.length)));
 
+  const BANDS_MAX_SIZES = new Array(config.maxBands)
+    .fill(0)
+    .map((_, i) => 2 ** i * 100);
+  console.log(BANDS_MAX_SIZES);
+
   const BAND_END_GAP = 0;
 
   function loopPos(x: number) {
-    const x2 = x % (bandLength + BAND_END_GAP);
-    const x3 = x2 < 0 ? x2 + bandLength + BAND_END_GAP : x2;
+    const maxSize = BANDS_MAX_SIZES[dimension]!;
+    const x2 = x % maxSize;
+    const x3 = x2 < 0 ? x2 + maxSize : x2;
     return x3;
   }
+
+  //  ██████╗███╗   ███╗██████╗ ███████╗
+  // ██╔════╝████╗ ████║██╔══██╗██╔════╝
+  // ██║     ██╔████╔██║██║  ██║███████╗
+  // ██║     ██║╚██╔╝██║██║  ██║╚════██║
+  // ╚██████╗██║ ╚═╝ ██║██████╔╝███████║
+  //  ╚═════╝╚═╝     ╚═╝╚═════╝ ╚══════╝
+  // #region CMDS
 
   function paint(
     axis: number,
@@ -189,6 +232,14 @@ function createBandsState(config: {
     return slice;
   }
 
+  // ███████╗██╗  ██╗██████╗  ██████╗ ██████╗ ████████╗███████╗
+  // ██╔════╝╚██╗██╔╝██╔══██╗██╔═══██╗██╔══██╗╚══██╔══╝██╔════╝
+  // █████╗   ╚███╔╝ ██████╔╝██║   ██║██████╔╝   ██║   ███████╗
+  // ██╔══╝   ██╔██╗ ██╔═══╝ ██║   ██║██╔══██╗   ██║   ╚════██║
+  // ███████╗██╔╝ ██╗██║     ╚██████╔╝██║  ██║   ██║   ███████║
+  // ╚══════╝╚═╝  ╚═╝╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
+  // #region Exports
+
   return {
     fillWithGiberish(axis: number) {
       const randColor = () =>
@@ -207,6 +258,7 @@ function createBandsState(config: {
       });
     },
     fillWithSpectrum,
+    BANDS_MAX_SIZES,
     get bands() {
       return bands;
     },
@@ -227,7 +279,11 @@ function createBandsState(config: {
       return cursors;
     },
     get cursor() {
-      return cursors[dimension];
+      let c = cursors[dimension] % BANDS_MAX_SIZES[dimension]!;
+      if (c < 0) {
+        c += BANDS_MAX_SIZES[dimension]!;
+      }
+      return c;
     },
     nextDimension() {
       dimension = Math.min(dimension + 1, config.maxBands - 1);

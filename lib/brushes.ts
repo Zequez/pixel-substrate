@@ -142,7 +142,6 @@ export function createSquarePen(pen: CanvasRenderingContext2D) {
   // console.log("Creating pen");
   function draw(x: number, y: number, scale: number, color: string | null) {
     // console.log("Drawing", x, y, scale, color);
-    console.log(color);
     if (!color) {
       pen.clearRect(Math.floor(x), Math.floor(y), scale, scale);
     } else {

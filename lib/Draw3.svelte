@@ -10,25 +10,24 @@
   import { onMount, tick } from "svelte";
   import { render } from "svelte/server";
   import { createStarsPen, createSquarePen, createGridPen } from "./brushes";
-  import { createBandsState, type LCHA } from "./bands.state.svelte";
+  import { createBandsState, type Band, type LCHA } from "./bands.state.svelte";
   import { lchaToRgba, hexRgbaToLcha, interpolatePoints } from "./utils3";
   import { lsState } from "/@shared/ls-state.svelte";
 
   const props: { class?: any } = $props();
 
+  let shellEl: HTMLDivElement;
   let stage: HTMLDivElement;
   let canvasStars: HTMLCanvasElement;
   let canvasGrid: HTMLCanvasElement;
   let canvasSquares: HTMLCanvasElement;
   let canvasCursor: HTMLCanvasElement;
+  let miniMapCanvasEl: HTMLCanvasElement;
 
   let starsPen: ReturnType<typeof createStarsPen> = null!;
   let squarePen: ReturnType<typeof createSquarePen> = null!;
-  let gridPen: ReturnType<typeof createGridPen> = null!;
-  let cursorPen: ReturnType<typeof createSquarePen> = null!;
 
   const STARS_DOWNSCALING = 1;
-  const MAX_DOWNSCALING = 6;
 
   // ███████╗████████╗ █████╗ ████████╗███████╗
   // ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██╔════╝
@@ -48,6 +47,8 @@
   let stageLength = $derived(Math.floor(B.bandSize * aspectRatio));
   let stageSlice = $derived(B.readBand(B.cursor, stageLength));
 
+  let minimapLoc = $state({ x: 0, y: 0, w: 0, h: 0 });
+
   let UI = lsState("UI", {
     showDetails: false,
     showMiniMap: true,
@@ -64,9 +65,6 @@
   // white   : lch(100% 0   0)
 
   let color = $state<LCHA | null>([100, 0, 140, 1]);
-  // let colorString = $derived(
-  //   `lch(${color[0]}% ${color[1]} ${color[2]} ${color[3]})`,
-  // );
   let colorString = $derived(color ? lchaToRgba(...color) : null);
 
   // Mouse position tracking
@@ -147,6 +145,7 @@
     readDimensionFromStage();
     drawStars();
     drawSquares();
+    drawMinimap();
   });
 
   //  ██████╗ ██████╗ ███╗   ███╗███╗   ███╗ █████╗ ███╗   ██╗██████╗ ███████╗
@@ -166,6 +165,16 @@
       top: y,
     } = stage.getBoundingClientRect();
     stageLoc = { w, h, x, y };
+
+    if (miniMapCanvasEl) {
+      let minimapRect = miniMapCanvasEl.getBoundingClientRect();
+      minimapLoc = {
+        w: minimapRect.width,
+        h: minimapRect.height,
+        x: minimapRect.left,
+        y: minimapRect.top,
+      };
+    }
 
     // canvasGrid.width = w;
     // canvasGrid.height = h;
@@ -203,9 +212,50 @@
     starsPen.draw(0, 0, w, h);
   }
 
-  function drawGrid() {
-    const { w, h } = stageLoc;
-    gridPen.draw(0, 0, w, h);
+  function drawMinimapPartial(coords: SquareCoord[], color: string | null) {
+    if (miniMapCanvasEl) {
+      const minimapPen = createSquarePen(miniMapCanvasEl.getContext("2d")!);
+      const BN = 0;
+      const band = B.band;
+      coords.forEach((coord) => {
+        const cursor = B.cursor % B.BANDS_MAX_SIZES[B.dimension]!;
+        minimapPen.draw(cursor + coord.axis, coord.cross, 1, color);
+      });
+    }
+  }
+
+  function drawMinimap() {
+    if (miniMapCanvasEl) {
+      const minimapPen = createSquarePen(miniMapCanvasEl.getContext("2d")!);
+      // const BN = 0;
+      // const band = B.bands[BN]!;
+      const band = B.band;
+      // minimapPen.draw(0, 0)
+
+      const size = B.BANDS_MAX_SIZES[B.dimension]!;
+      miniMapCanvasEl.width = size;
+      miniMapCanvasEl.height = band.length;
+      minimapPen.clear();
+      band.forEach((line, cross) => {
+        line.forEach((color, axis) => {
+          minimapPen.draw(axis, cross, 1, color);
+        });
+      });
+      // B.BANDS_MAX_SIZES.forEach((size, i) => {
+      //   const band = B.bands[i]!;
+
+      //   minimapPen.draw()
+      // });
+    }
+  }
+
+  async function toggleFullscreen() {
+    if (document.fullscreenElement === shellEl!) {
+      await document.exitFullscreen();
+      return;
+    }
+
+    await shellEl!.requestFullscreen();
   }
 
   // ███████╗██╗   ██╗███████╗███╗   ██╗████████╗███████╗
@@ -238,12 +288,14 @@
       case "ArrowDown": {
         B.nextDimension();
         resizeSquaresCanvas();
+        drawMinimap();
         break;
       }
       case "KeyW":
       case "ArrowUp": {
         B.previousDimension();
         resizeSquaresCanvas();
+        drawMinimap();
         break;
       }
       case "KeyA":
@@ -253,6 +305,7 @@
         } else {
           B.shift(-1);
         }
+
         break;
       }
       case "KeyD":
@@ -265,46 +318,59 @@
         break;
       }
       case "KeyR": {
-        if (ev.shiftKey) {
-          B.fillWithSpectrum(Math.floor(mousePosBand.axis));
-        } else {
-          B.fillWithGiberish(Math.floor(mousePosBand.axis));
-        }
+        B.fillWithGiberish(Math.floor(mousePosBand.axis));
         drawSquares();
+        drawMinimap();
+        break;
+      }
+      case "KeyT": {
+        B.fillWithSpectrum(Math.floor(mousePosBand.axis));
+        drawSquares();
+        drawMinimap();
         break;
       }
       case "KeyF": {
         B.emptySpace(Math.floor(mousePosBand.axis));
+        drawMinimap();
         break;
       }
       case "KeyE": {
         B.addSpace(Math.floor(mousePosBand.axis + 1));
+        drawMinimap();
         break;
       }
       case "KeyQ": {
         B.removeSpace(Math.floor(mousePosBand.axis));
+        drawMinimap();
         break;
       }
-      case "KeyG": {
+      case "Comma": {
         UI.showDetails = !UI.showDetails;
         tick().then(() => {
           readDimensionFromStage();
           drawStars();
           drawSquares();
+          drawMinimap();
         });
 
         break;
       }
-      case "KeyV": {
+      case "KeyM": {
         UI.showMiniMap = !UI.showMiniMap;
         tick().then(() => {
           readDimensionFromStage();
           drawStars();
           drawSquares();
+          drawMinimap();
         });
         break;
       }
+      case "Enter": {
+        toggleFullscreen();
+      }
     }
+
+    // console.log("Pressed", ev.code);
 
     drawSquares();
   }
@@ -327,6 +393,7 @@
       B.paint(axis, cross, 1, colorString);
       // drawSquares(); // Maybe optimize later
       squarePen.draw(axis, cross, 1, colorString);
+      drawMinimapPartial([{ axis, cross }], colorString);
     } else if (ev.button === 2) {
       const sampled = B.sampleColor(axis, cross);
       color = sampled ? hexRgbaToLcha(sampled) : null;
@@ -353,6 +420,7 @@
           B.paint(axis, cross, 1, colorString);
           squarePen.draw(axis, cross, 1, colorString);
         });
+        drawMinimapPartial(points, colorString);
         pointerState.lastPos = { cross, axis };
         // drawSquares(); // Maybe optimize later
         // squarePen.draw(axis, cross, 1, "#ffffff");
@@ -378,32 +446,69 @@
 
 <svelte:window onresize={handleStageResize} onkeypress={handleKeyPress} />
 
-<div style={`flex-direction: ${flexDirection};`} class="flex h-[100dvh]">
+<div
+  style={`flex-direction: ${flexDirection};`}
+  class="flex h-[100dvh]"
+  bind:this={shellEl}
+>
   <!-- #region Data
     ################################### -->
   {#if UI.showDetails}
-    <div class="basis-24 p3 shrink-0 bg-stone-600 text-white">
-      <div class="h6 align-middle">
-        Stage (PX):
-        <span class="inline-block i-fa-arrow-right relative top-0.5"></span>
-        {stageLoc.x}
-        <span class="inline-block i-fa-arrow-down relative top-0.5"></span>
-        {stageLoc.y}
-        |
-        {Math.round(stageLoc.w)}x{Math.round(stageLoc.h)} [{Math.round(
-          mousePosStage.x,
-        )}x{Math.round(mousePosStage.y)}]
-      </div>
-      <div class="h6">
-        Aspect Ratio: {JSON.stringify(Math.round(aspectRatio * 100) / 100)}
-      </div>
-      <div class="h6">
-        <div
-          style={`background: ${colorString}`}
-          class="inline-block h4 w4"
-        ></div>
-        [{B.dimension}] | SquarePos: {B.bandSize}x{stageLength} [{mousePosBand.cross},
-        {mousePosBand.axis}] | {B.cursor} ({B.loopPos(B.cursor)})
+    <div class="basis-24 p3 shrink-0 flex bg-stone-600 text-white">
+      <div class="flex">
+        <div>
+          <div class="h6 align-middle">
+            Stage (PX):
+            <span class="inline-block i-fa-arrow-right relative top-0.5"></span>
+            {stageLoc.x}
+            <span class="inline-block i-fa-arrow-down relative top-0.5"></span>
+            {stageLoc.y}
+            |
+            {Math.round(stageLoc.w)}x{Math.round(stageLoc.h)} [{Math.round(
+              mousePosStage.x,
+            )}x{Math.round(mousePosStage.y)}]
+          </div>
+          <div class="h6">
+            Aspect Ratio: {JSON.stringify(Math.round(aspectRatio * 100) / 100)}
+          </div>
+          <div class="h6">
+            <div
+              style={`background: ${colorString}`}
+              class="inline-block h4 w4"
+            ></div>
+            [{B.dimension}] | SquarePos: {B.bandSize}x{stageLength} [{mousePosBand.cross},
+            {mousePosBand.axis}] | {B.cursor} ({B.loopPos(B.cursor)})
+          </div>
+        </div>
+        <div class="grow"></div>
+        <!-- <div class="flex w-60% flex-wrap space-x-1">
+          <div class="bg-black text-white rounded-1 px-1">A-D = Move band</div>
+          <div class="bg-black text-white rounded-1 px-1">
+            W-S = UP / DOWN density dimensions
+          </div>
+          <div class="bg-black text-white rounded-1 px-1">
+            F = Erase cross line
+          </div>
+          <div class="bg-black text-white rounded-1 px-1">
+            R = Fill cross line with colors
+          </div>
+          <div class="bg-black text-white rounded-1 px-1">
+            Shift+R = Fill cross line with a spectrum color pallette
+          </div>
+          <div class="bg-black text-white rounded-1 px-1">
+            E = Insert space in between
+          </div>
+          <div class="bg-black text-white rounded-1 px-1">Q = Remove space</div>
+          <div class="bg-black text-white rounded-1 px-1">
+            Left Click: Paint
+          </div>
+          <div class="bg-black text-white rounded-1 px-1">
+            Middle Click: Fill
+          </div>
+          <div class="bg-black text-white rounded-1 px-1">
+            Right Click: Sample color
+          </div>
+        </div> -->
       </div>
     </div>
   {/if}
@@ -499,7 +604,26 @@
   <!-- #region Bands
     ################################### -->
   {#if UI.showMiniMap}
-    <div class="basis-24 p3 grow-0 shrink-0 bg-slate-600">
+    <div class="relative h40 p1.5 grow-0 shrink-0 bg-slate-600">
+      <div class="relative size-full overflow-hidden">
+        {#if minimapLoc.w > 0}
+          {@const minimapBlockSize =
+            (1 / B.BANDS_MAX_SIZES[B.dimension]!) * minimapLoc.w}
+          {@const minimapVisorSize = minimapBlockSize * stageLength}
+          {@const posX = (B.cursor * minimapBlockSize) % minimapLoc.w}
+          <div
+            style={`transform: translateX(${posX}px); width: ${minimapVisorSize}px;`}
+            class="absolute top-0 left-0 h-full bg-white/50 b b-white"
+          ></div>
+        {/if}
+        <canvas
+          style="image-rendering: pixelated;"
+          bind:this={miniMapCanvasEl}
+          class="bg-black rounded-1 size-full"
+        ></canvas>
+      </div>
+    </div>
+    <!-- <div class="basis-24 p3 grow-0 shrink-0 bg-slate-600">
       <div class="bg-black rounded-1 flex-ss flex-col">
         {#each B.bands as band, i (i)}
           {@const scale = i + 1}
@@ -531,6 +655,6 @@
           </div>
         {/each}
       </div>
-    </div>
+    </div> -->
   {/if}
 </div>
