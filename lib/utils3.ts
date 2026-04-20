@@ -1,4 +1,11 @@
 import type { Band } from "./bands.state.svelte";
+1;
+export type LCHA = [
+  lightness: number,
+  chroma: number,
+  hue: number,
+  alpha: number,
+];
 
 export function lchaToRgba(L: number, C: number, H: number, A = 1) {
   // Convert hue to radians
@@ -183,4 +190,80 @@ export function interpolatePoints(
   }
 
   return coordinates;
+}
+
+export function pickImageFile(): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) reject(new Error("No file selected"));
+      else resolve(file);
+    };
+
+    input.click();
+  });
+}
+
+export function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+export function imageToBand(img: HTMLImageElement): Band {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) throw new Error("Canvas context unavailable");
+
+  canvas.width = img.width;
+  canvas.height = img.height;
+
+  ctx.drawImage(img, 0, 0);
+
+  const { data, width, height } = ctx.getImageData(
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+
+  const band: Band = [];
+
+  let i = 0;
+
+  for (let y = 0; y < height; y++) {
+    const row: (string | null)[] = [];
+
+    for (let x = 0; x < width; x++) {
+      const r = data[i++]!;
+      const g = data[i++]!;
+      const b = data[i++]!;
+      const a = data[i++]!;
+
+      if (a === 0) {
+        row.push(null);
+      } else {
+        console.log(r, g, b, a);
+        row.push(rgbaToHex(r, g, b, a / 255));
+      }
+    }
+
+    band.push(row);
+  }
+
+  return band;
 }

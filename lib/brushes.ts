@@ -150,6 +150,19 @@ export function createSquarePen(pen: CanvasRenderingContext2D) {
     }
   }
 
+  function drawMany(
+    points: { x: number; y: number }[],
+    scale: number,
+    color: string | null,
+  ) {
+    // if (!color) {
+    //   pen.clearRect(Math.floor(x), Math.floor(y), scale, scale);
+    // } else {
+    //   pen.fillStyle = color;
+    //   pen.fillRect(Math.floor(x), Math.floor(y), scale, scale);
+    // }
+  }
+
   function clear() {
     pen.clearRect(0, 0, pen.canvas.width, pen.canvas.height);
   }

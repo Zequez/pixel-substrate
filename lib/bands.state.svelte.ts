@@ -40,26 +40,31 @@ function createBandsState(config: {
   // 2nd band: ||
   // 3rd band: ||||
   // 4th band: |||| ||||
-  let bands: Band[] = $state(
-    loadFromLS("bands2", () => {
-      return new Array(config.maxBands)
-        .fill(null)
-        .map((_, i) => craftEmptyBand(i + 1));
-    }),
-  );
+
+  function craftBands() {
+    return new Array(config.maxBands)
+      .fill(null)
+      .map((_, i) => craftEmptyBand(i + 1));
+  }
+
+  const BAND_KEY = "bands3";
+  let bands: Band[] = $state(loadFromLS(BAND_KEY, craftBands));
   let bandsSaveTimer: number | null = null;
   $effect(() => {
     JSON.stringify(bands);
     clearTimeout(bandsSaveTimer!);
     bandsSaveTimer = setTimeout(() => {
-      localStorage.setItem("bands", JSON.stringify(bands));
+      console.log("Storing");
+      localStorage.setItem(BAND_KEY, JSON.stringify(bands));
     }, 500);
   });
 
+  function craftCursors() {
+    return new Array(config.maxBands).fill(0);
+  }
+
   // One cursor per band
-  let cursors = $state(
-    loadFromLS("cursors", () => Array(config.maxBands).fill(0)),
-  );
+  let cursors = $state(loadFromLS("cursors", craftCursors));
   $effect(() => {
     localStorage.setItem("cursors", JSON.stringify(cursors));
   });
@@ -69,15 +74,15 @@ function createBandsState(config: {
   let bandSize = $derived(band.length);
   let bandLength = $derived(Math.max(...band.map((line) => line.length)));
 
-  const BANDS_MAX_SIZES = new Array(config.maxBands)
+  const BANDS_INITIAL_SIZES = new Array(config.maxBands)
     .fill(0)
     .map((_, i) => 2 ** i * 100);
-  console.log(BANDS_MAX_SIZES);
+  console.log(BANDS_INITIAL_SIZES);
 
   const BAND_END_GAP = 0;
 
   function loopPos(x: number) {
-    const maxSize = BANDS_MAX_SIZES[dimension]!;
+    const maxSize = BANDS_INITIAL_SIZES[dimension]!;
     const x2 = x % maxSize;
     const x3 = x2 < 0 ? x2 + maxSize : x2;
     return x3;
@@ -115,12 +120,7 @@ function createBandsState(config: {
     const pos = axisToLoopedPos(axis);
 
     band.forEach((line) => {
-      const shiftLeft = line.length % 2 === 1;
-
       line = line.splice(pos, 0, null);
-      if (shiftLeft) {
-        // shift(1);
-      }
     });
   }
 
@@ -232,6 +232,15 @@ function createBandsState(config: {
     return slice;
   }
 
+  function reset() {
+    bands = craftBands();
+    cursors = craftCursors();
+  }
+
+  function bandVirtualLength() {
+    return Math.max(band[0]!.length, BANDS_INITIAL_SIZES[dimension]!);
+  }
+
   // ███████╗██╗  ██╗██████╗  ██████╗ ██████╗ ████████╗███████╗
   // ██╔════╝╚██╗██╔╝██╔══██╗██╔═══██╗██╔══██╗╚══██╔══╝██╔════╝
   // █████╗   ╚███╔╝ ██████╔╝██║   ██║██████╔╝   ██║   ███████╗
@@ -248,17 +257,11 @@ function createBandsState(config: {
       const pos = axisToLoopedPos(axis);
 
       band.forEach((line) => {
-        // Color from #000000 to #ffffff
         line[pos] = randColor();
-        // let start = line.length - 1;
-        // let len = Math.floor(Math.random() * 7);
-        // for (let i = start; i <= start + len; i++) {
-        //   // line[i] = randColor();
-        // }
       });
     },
     fillWithSpectrum,
-    BANDS_MAX_SIZES,
+    BAND_INITIAL_SIZES: BANDS_INITIAL_SIZES,
     get bands() {
       return bands;
     },
@@ -279,9 +282,9 @@ function createBandsState(config: {
       return cursors;
     },
     get cursor() {
-      let c = cursors[dimension] % BANDS_MAX_SIZES[dimension]!;
+      let c = cursors[dimension] % BANDS_INITIAL_SIZES[dimension]!;
       if (c < 0) {
-        c += BANDS_MAX_SIZES[dimension]!;
+        c += BANDS_INITIAL_SIZES[dimension]!;
       }
       return c;
     },
@@ -299,6 +302,8 @@ function createBandsState(config: {
     removeSpace,
     emptySpace,
     fillSpace,
+    reset,
+    bandVirtualLength,
   };
 }
 
