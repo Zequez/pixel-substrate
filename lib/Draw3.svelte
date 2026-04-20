@@ -562,6 +562,35 @@
     }
   }
 
+  let minimapPointer = $state<{ axis: number } | null>(null);
+  function handleMinimapPointerDown(ev: PointerEvent) {
+    minimapPointer = { axis: getMinimapPointerAxis(ev) };
+    B.shift(minimapPointer.axis - B.cursor);
+    drawSquares();
+  }
+
+  function handleMinimapPointerMove(ev: PointerEvent) {
+    if (minimapPointer) {
+      const newAxis = getMinimapPointerAxis(ev);
+      if (newAxis !== minimapPointer.axis) {
+        minimapPointer.axis = newAxis;
+        B.shift(newAxis - B.cursor);
+        drawSquares();
+      }
+    }
+  }
+
+  function getMinimapPointerAxis(ev: PointerEvent) {
+    const { w, x } = minimapLoc;
+    const axis = (ev.clientX - x) / w;
+    const axis2 = Math.floor(axis * B.bandVirtualLength() - stageLength / 2);
+    return axis2;
+  }
+
+  function handleMinimapPointerUp() {
+    minimapPointer = null;
+  }
+
   // ████████╗██████╗ ███████╗██╗     ██╗     ██╗███████╗
   // ╚══██╔══╝██╔══██╗██╔════╝██║     ██║     ██║██╔════╝
   //    ██║   ██████╔╝█████╗  ██║     ██║     ██║███████╗
@@ -747,18 +776,52 @@
     <div class="relative h40 p1.5 grow-0 shrink-0 bg-slate-600">
       <div class="relative size-full overflow-hidden">
         {#if minimapLoc.w > 0}
-          {@const minimapBlockSize = (1 / B.bandVirtualLength()) * minimapLoc.w}
+          {@const bandLen = B.bandVirtualLength()}
+          {@const allVisible = bandLen < stageLength}
+          {@const minimapBlockSize = (1 / bandLen) * minimapLoc.w}
           {@const minimapVisorSize = minimapBlockSize * stageLength}
           {@const posX = (B.cursor * minimapBlockSize) % minimapLoc.w}
+          {@const overflow =
+            B.cursor * minimapBlockSize + minimapVisorSize - minimapLoc.w}
+
           <div
             style={`transform: translateX(${posX}px); width: ${minimapVisorSize}px;`}
-            class="absolute top-0 left-0 h-full bg-white/50 b b-white"
-          ></div>
+            class={[
+              "absolute top-0 left-0 h-full b flex-cc pointer-events-none",
+              {
+                "bg-white/50 b-white": !allVisible,
+                "b-transparent bg-transparent": allVisible,
+              },
+            ]}
+          >
+            {#if allVisible}
+              <div class="w-1 -translate-x-1/2 bg-white h-full"></div>
+            {/if}
+          </div>
+          {#if overflow > 0}
+            <div
+              style={`transform: translateX(${overflow - minimapLoc.w}px); width: ${minimapVisorSize}px;`}
+              class={[
+                "absolute top-0 left-0 h-full b flex-cc pointer-events-none",
+                {
+                  "bg-white/50 b-white": !allVisible,
+                  "b-transparent bg-transparent": allVisible,
+                },
+              ]}
+            >
+              {#if allVisible}
+                <div class="w-1 -translate-x-1/2 bg-white h-full"></div>
+              {/if}
+            </div>
+          {/if}
         {/if}
         <canvas
           style="image-rendering: pixelated;"
           bind:this={miniMapCanvasEl}
           class="bg-black rounded-1 size-full"
+          onpointerdown={handleMinimapPointerDown}
+          onpointermove={handleMinimapPointerMove}
+          onpointerup={handleMinimapPointerUp}
         ></canvas>
       </div>
     </div>
