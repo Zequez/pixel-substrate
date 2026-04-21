@@ -20,6 +20,7 @@
     imageToBand,
   } from "./utils3";
   import { lsState } from "/@shared/ls-state.svelte";
+  import Character from "./games/Character.svelte";
 
   const props: { class?: any } = $props();
 
@@ -140,6 +141,12 @@
     | { type: "moving" }
     | { type: "penDown"; lastPos: SquareCoord }
   >({ type: "inactive" });
+
+  let minimapPointer = $state<{ axis: number } | null>(null);
+
+  // #############################
+
+  let gameMode = $state<"draw" | "character">("draw");
 
   //  ██████╗ ███╗   ██╗███╗   ███╗ ██████╗ ██╗   ██╗███╗   ██╗████████╗
   // ██╔═══██╗████╗  ██║████╗ ████║██╔═══██╗██║   ██║████╗  ██║╚══██╔══╝
@@ -302,6 +309,20 @@
 
   function handleKeyPress(ev: KeyboardEvent) {
     switch (ev.code) {
+      case "Digit0": {
+        if (gameMode === "draw") gameMode = "character";
+        else gameMode = "draw";
+        break;
+      }
+      case "Enter": {
+        toggleFullscreen();
+        break;
+      }
+    }
+
+    if (gameMode !== "draw") return;
+
+    switch (ev.code) {
       // #region K EV. Nav
       // #################################
 
@@ -336,6 +357,7 @@
           B.shift(-1);
           if (pointerState.type === "penDown") {
             B.paint(mousePosBand.axis, mousePosBand.cross, 1, colorString);
+            drawMinimap();
           }
         }
 
@@ -350,6 +372,7 @@
           B.shift(1);
           if (pointerState.type === "penDown") {
             B.paint(mousePosBand.axis, mousePosBand.cross, 1, colorString);
+            drawMinimap();
           }
         }
         break;
@@ -429,11 +452,6 @@
       // #region K EV. Utils
       // #################################
 
-      case "Enter": {
-        toggleFullscreen();
-        break;
-      }
-
       case "KeyL": {
         B.reset();
         drawSquares();
@@ -490,7 +508,7 @@
       }
     }
 
-    // console.log("Pressed", ev.code);
+    console.log("Pressed", ev.code);
 
     drawSquares();
   }
@@ -504,6 +522,8 @@
   // #region EV. POINTER
 
   function handlePointerDown(ev: PointerEvent) {
+    if (gameMode !== "draw") return;
+
     const { cross, axis } = mousePosBand;
     if (ev.button === 1) {
       B.fillSpace(axis, cross, stageLength, colorString);
@@ -524,6 +544,7 @@
   }
 
   function handlePointerMove(ev: PointerEvent) {
+    if (gameMode !== "draw") return;
     mousePosClient = { x: ev.clientX, y: ev.clientY };
 
     switch (pointerState.type) {
@@ -557,12 +578,13 @@
   }
 
   function handlePointerLeave() {
+    if (gameMode !== "draw") return;
+
     if (pointerState.type === "penDown") {
       pointerState = { type: "inactive" };
     }
   }
 
-  let minimapPointer = $state<{ axis: number } | null>(null);
   function handleMinimapPointerDown(ev: PointerEvent) {
     minimapPointer = { axis: getMinimapPointerAxis(ev) };
     B.shift(minimapPointer.axis - B.cursor);
@@ -603,12 +625,16 @@
 <svelte:window onresize={handleStageResize} onkeypress={handleKeyPress} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
+
 <div
   style={`flex-direction: ${flexDirection};`}
   class="flex h-[100dvh] relative"
   onpointerleave={handlePointerLeave}
   bind:this={shellEl}
 >
+  {#if gameMode === "character"}
+    <Character band={B.normalizedBand()} />
+  {/if}
   <!-- #region Data
     ################################### -->
   {#if UI.manager}
@@ -641,11 +667,14 @@
           <div class="h6">
             Aspect Ratio: {JSON.stringify(Math.round(aspectRatio * 100) / 100)}
           </div>
-          <div class="h6">
-            <div
-              style={`background: ${colorString}`}
-              class="inline-block h4 w4"
-            ></div>
+          <div class="h6 flex">
+            <div class="flex-cc mr2 font-mono">
+              <div
+                style={`background: ${colorString}`}
+                class="inline-block h4 w4 mr2"
+              ></div>
+              {colorString}
+            </div>
             SquarePos: {B.bandLines}x{stageLength} [{mousePosBand.cross},
             {mousePosBand.axis}] | {B.cursor} ({B.loopPos(B.cursor)})
           </div>

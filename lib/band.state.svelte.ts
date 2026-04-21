@@ -292,6 +292,18 @@ function createBandState(config: {
     cursor = 0;
   }
 
+  function normalizedBand() {
+    const maxLength = Math.max(...band.map((l) => l.length), config.minLength);
+    const nBand: Band = [];
+    for (let line = 0; line < band.length; line++) {
+      nBand[line] = [];
+      for (let axis = 0; axis < maxLength; axis++) {
+        nBand[line]![axis] = band[line]![axis] || null;
+      }
+    }
+    return nBand;
+  }
+
   // ███████╗██╗  ██╗██████╗  ██████╗ ██████╗ ████████╗███████╗
   // ██╔════╝╚██╗██╔╝██╔══██╗██╔═══██╗██╔══██╗╚══██╔══╝██╔════╝
   // █████╗   ╚███╔╝ ██████╔╝██║   ██║██████╔╝   ██║   ███████╗
@@ -337,6 +349,7 @@ function createBandState(config: {
     removeLine,
     switchKey,
     loadFullBand,
+    normalizedBand,
   };
 }
 
